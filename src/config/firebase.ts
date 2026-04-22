@@ -1,17 +1,17 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // ⚠️ Credentials are here for runtime reliability.
 // The .env file exists for git safety — never commit secrets to public repos.
 const firebaseConfig = {
-  apiKey: "AIzaSyDrSpqry2wmPrDoDeoE3E816S_MS5NwCAQ",
-  authDomain: "hackathonops-5b20a.firebaseapp.com",
-  projectId: "hackathonops-5b20a",
-  storageBucket: "hackathonops-5b20a.firebasestorage.app",
-  messagingSenderId: "125982064621",
-  appId: "1:125982064621:web:50383330acab399a2631e4",
-  measurementId: "G-8CYBHBKRH9",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Prevent duplicate initialization on Expo hot-reload
