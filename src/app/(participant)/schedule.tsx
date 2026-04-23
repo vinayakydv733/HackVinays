@@ -1,99 +1,292 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { Ionicons } from '@expo/vector-icons';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
+import { db } from '../../firebase/config';
 
-type EventItem = {
+type EventType = 'event' | 'speaker' | 'break' | 'meal';
+
+interface ScheduleEvent {
   id: string;
-  time: string;
   title: string;
-  type: 'Main' | 'Food' | 'Speaker' | 'Judging';
-  isNow?: boolean;
+  description: string;
+  time: string;
+  date: string;
+  type: EventType;
+  location?: string;
+}
+
+interface TypeConfigItem {
+  color: string;
+  icon: string;
+  label: string;
+}
+
+const TYPE_CONFIG: { [key in EventType]: TypeConfigItem } = {
+  event:   { color: COLORS.primary, icon: 'calendar',    label: 'EVENT'   },
+  speaker: { color: COLORS.purple,  icon: 'mic',         label: 'SPEAKER' },
+  break:   { color: COLORS.orange,  icon: 'cafe',        label: 'BREAK'   },
+  meal:    { color: COLORS.green,   icon: 'restaurant',  label: 'MEAL'    },
 };
 
-export default function ParticipantSchedule() {
-  const [events, setEvents] = useState<EventItem[]>([]);
+export default function Schedule() {
+  const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [groupedEvents, setGroupedEvents] = useState<{ [key: string]: ScheduleEvent[] }>({});
 
   useEffect(() => {
-    const q = query(collection(db, 'schedule'), orderBy('time', 'asc'));
+    const q = query(
+      collection(db, 'events'),
+      orderBy('date', 'asc')
+    );
     const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() })) as EventItem[];
+      const data = snap.docs.map(
+        (d) => ({ id: d.id, ...d.data() } as ScheduleEvent)
+      );
       setEvents(data);
+
+      const grouped: { [key: string]: ScheduleEvent[] } = {};
+      data.forEach((e) => {
+        if (!grouped[e.date]) grouped[e.date] = [];
+        grouped[e.date].push(e);
+      });
+      setGroupedEvents(grouped);
       setLoading(false);
     });
     return unsub;
   }, []);
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'Food': return '#ff006e';
-      case 'Speaker': return '#3a86ff';
-      case 'Judging': return '#fb5607';
-      default: return '#9d4edd';
-    }
-  };
-
-  if (loading) return (
-    <View style={{ flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" color="#9d4edd" />
-    </View>
-  );
+  if (loading) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Event Schedule</Text>
-        <MaterialCommunityIcons name="bell-ring-outline" size={24} color="#a0a0a0" />
+        <Text style={styles.headerTitle}>Event Schedule</Text>
       </View>
 
-      {events.length === 0 ? (
-        <View style={styles.empty}>
-          <MaterialCommunityIcons name="calendar-blank" size={48} color="#333" />
-          <Text style={styles.emptyText}>Schedule will appear here</Text>
-        </View>
-      ) : events.map((event, index) => (
-        <View key={event.id} style={styles.timelineRow}>
-          <View style={styles.timeCol}>
-            <Text style={[styles.timeText, event.isNow && styles.timeNow]}>{event.time}</Text>
-          </View>
-          <View style={styles.lineCol}>
-            <View style={[styles.dot, { borderColor: getTypeColor(event.type) }, event.isNow && styles.dotNow]} />
-            {index !== events.length - 1 && <View style={styles.line} />}
-          </View>
-          <View style={[styles.card, event.isNow && styles.cardNow]}>
-            {event.isNow && <Text style={styles.nowBadge}>HAPPENING NOW</Text>}
-            <Text style={styles.cardTitle}>{event.title}</Text>
-            <View style={[styles.tag, { backgroundColor: getTypeColor(event.type) + '30' }]}>
-              <Text style={[styles.tagText, { color: getTypeColor(event.type) }]}>{event.type}</Text>
+      <ScrollView contentContainerStyle={styles.content}>
+        {Object.keys(groupedEvents).map((date) => (
+          <View key={date}>
+            <View style={styles.dateSeparator}>
+              <View style={styles.dateLine} />
+              <Text style={styles.dateText}>
+                {new Date(date)
+                  .toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'short',
+                  })
+                  .toUpperCase()}
+              </Text>
+              <View style={styles.dateLine} />
             </View>
+
+            {groupedEvents[date].map((event: ScheduleEvent, index: number) => {
+              const config: TypeConfigItem = TYPE_CONFIG[event.type] ?? TYPE_CONFIG.event;
+              const isLast = index === groupedEvents[date].length - 1;
+
+              return (
+                <View key={event.id} style={styles.eventRow}>
+                  <View style={styles.timeline}>
+                    <View
+                      style={[
+                        styles.timelineDot,
+                        { backgroundColor: config.color },
+                      ]}
+                    >
+                      <Ionicons
+                        name={config.icon as any}
+                        size={12}
+                        color={COLORS.bg}
+                      />
+                    </View>
+                    {!isLast && <View style={styles.timelineLine} />}
+                  </View>
+
+                  <View style={styles.eventCard}>
+                    <View style={styles.eventCardTop}>
+                      <Text style={styles.eventTime}>{event.time}</Text>
+                      <View
+                        style={[
+                          styles.typeBadge,
+                          { backgroundColor: config.color + '22' },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.typeBadgeText,
+                            { color: config.color },
+                          ]}
+                        >
+                          {config.label}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.eventTitle}>{event.title}</Text>
+                    <Text style={styles.eventDesc}>{event.description}</Text>
+                    {event.location ? (
+                      <View style={styles.locationRow}>
+                        <Ionicons
+                          name="location"
+                          size={12}
+                          color={COLORS.textSecondary}
+                        />
+                        <Text style={styles.locationText}>
+                          {event.location}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })}
           </View>
-        </View>
-      ))}
-    </ScrollView>
+        ))}
+
+        {events.length === 0 && (
+          <View style={styles.empty}>
+            <Ionicons
+              name="calendar-outline"
+              size={48}
+              color={COLORS.textDim}
+            />
+            <Text style={styles.emptyText}>No events scheduled yet</Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  content: { padding: 16, paddingBottom: 100 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
-  empty: { alignItems: 'center', marginTop: 80 },
-  emptyText: { color: '#555', marginTop: 12, fontSize: 16 },
-  timelineRow: { flexDirection: 'row' },
-  timeCol: { width: 60, paddingTop: 16 },
-  timeText: { color: '#a0a0a0', fontSize: 12, fontWeight: '600' },
-  timeNow: { color: '#9d4edd' },
-  lineCol: { width: 30, alignItems: 'center' },
-  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, backgroundColor: '#121212', marginTop: 18, zIndex: 10 },
-  dotNow: { backgroundColor: '#9d4edd', borderColor: '#9d4edd' },
-  line: { width: 2, flex: 1, backgroundColor: '#333', marginTop: -4, marginBottom: -18 },
-  card: { flex: 1, backgroundColor: '#1e1e1e', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#333' },
-  cardNow: { borderColor: '#9d4edd', borderWidth: 1.5, backgroundColor: '#2a1b38' },
-  nowBadge: { color: '#9d4edd', fontSize: 10, fontWeight: 'bold', letterSpacing: 1, marginBottom: 4 },
-  cardTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginBottom: 8 },
-  tag: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  tagText: { fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase' }
+  loader: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  header: {
+    paddingTop: 56,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  headerTitle: {
+    color: COLORS.textPrimary,
+    fontSize: FONTS.size.xl,
+    fontWeight: '800',
+  },
+  content: { padding: SPACING.md, paddingBottom: 100 },
+  dateSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  dateLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
+  dateText: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.size.xs,
+    letterSpacing: 2,
+    fontWeight: '700',
+  },
+  eventRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  timeline: {
+    alignItems: 'center',
+    width: 32,
+    paddingTop: SPACING.sm,
+  },
+  timelineDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: COLORS.border,
+    marginTop: 4,
+    minHeight: 20,
+  },
+  eventCard: {
+    flex: 1,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: SPACING.sm,
+  },
+  eventCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  eventTime: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.size.sm,
+    fontWeight: '600',
+  },
+  typeBadge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: RADIUS.sm,
+  },
+  typeBadgeText: {
+    fontSize: FONTS.size.xs,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  eventTitle: {
+    color: COLORS.textPrimary,
+    fontSize: FONTS.size.md,
+    fontWeight: '700',
+    marginBottom: SPACING.xs,
+  },
+  eventDesc: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.size.sm,
+    lineHeight: 20,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: SPACING.sm,
+  },
+  locationText: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.size.xs,
+  },
+  empty: {
+    alignItems: 'center',
+    paddingTop: 80,
+    gap: SPACING.md,
+  },
+  emptyText: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.size.md,
+  },
 });

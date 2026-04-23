@@ -1,43 +1,63 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { COLORS } from '../../constants/theme';
 
 export default function VolunteerLayout() {
   return (
-    <Tabs screenOptions={{
-      headerShown: true,
-      tabBarStyle: { backgroundColor: '#1e1e1e', borderTopColor: '#333' },
-      tabBarActiveTintColor: '#ff006e', 
-      tabBarInactiveTintColor: '#888',
-      headerStyle: { backgroundColor: '#121212' },
-      headerTitleStyle: { color: '#fff' },
-      headerTintColor: '#fff'
-    }}>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: COLORS.bgCard,
+          borderTopColor: COLORS.border,
+          borderTopWidth: 1,
+          height: 65,
+          paddingBottom: 10,
+          paddingTop: 8,
+        },
+        tabBarActiveTintColor: COLORS.purple,
+        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '600',
+          letterSpacing: 0.5,
+        },
+      }}
+    >
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Tasks',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="clipboard-text-outline" size={24} color={color} />,
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="checkin"
         options={{
-          title: 'Check-In',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="qrcode-scan" size={24} color={color} />,
+          title: 'Check In',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="qr-code" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="passes"
+        name="notices"
         options={{
-          title: 'Passes',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="ticket-confirmation-outline" size={24} color={color} />,
+          title: 'Notices',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="megaphone" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="resources"
+        name="schedule"
         options={{
-          title: 'Resources',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="tools" size={24} color={color} />,
+          title: 'Schedule',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar" size={size} color={color} />
+          ),
         }}
       />
     </Tabs>

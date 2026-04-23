@@ -1,137 +1,411 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    FlatList,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { db } from '../../firebase/config';
 
-type TeamScore = {
-  id: string;
-  teamName: string;
-  total: number;
-  rounds: number[];
-};
+interface LeaderboardEntry {
+    teamId: string;
+    teamName: string;
+    total: number;
+    round: number;
+}
 
-export default function LeaderboardScreen() {
-  const [teams, setTeams] = useState<TeamScore[]>([]);
-  const [loading, setLoading] = useState(true);
+const MEDAL = ['🥇', '🥈', '🥉'];
+const PODIUM_COLORS = [COLORS.yellow, COLORS.textSecondary, COLORS.orange];
 
-  useEffect(() => {
-    // Listen to judging_scores and aggregate per team
-    const unsub = onSnapshot(collection(db, 'judging_scores'), (snap) => {
-      const scoreMap: Record<string, TeamScore> = {};
+export default function Leaderboard() {
+    const { userData } = useAuth();
+    const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+    const [loading, setLoading] = useState(true);
 
-      snap.docs.forEach(d => {
-        const data = d.data();
-        const teamId = data.teamId;
-        const roundTotal = ((data.scores?.ux_design || 0) * 0.3)
-          + ((data.scores?.technical || 0) * 0.4)
-          + ((data.scores?.business || 0) * 0.3);
+    useEffect(() => {
+        // Listen to scores collection and aggregate by team
+        const unsub = onSnapshot(
+            collection(db, 'scores'),
+            (snap) => {
+                const scoreMap: Record<string, { total: number; count: number; teamName: string; round: number }> = {};
+                snap.docs.forEach((d) => {
+                    const s = d.data();
+                    if (!scoreMap[s.teamId]) {
+                        scoreMap[s.teamId] = {
+                            total: 0,
+                            count: 0,
+                            teamName: s.teamName,
+                            round: s.round,
+                        };
+                    }
+                    scoreMap[s.teamId].total += s.total;
+                    scoreMap[s.teamId].count += 1;
+                    scoreMap[s.teamId].round = Math.max(
+                        scoreMap[s.teamId].round,
+                        s.round
+                    );
+                });
 
-        if (!scoreMap[teamId]) {
-          scoreMap[teamId] = { id: teamId, teamName: data.teamName || teamId, total: 0, rounds: [] };
-        }
-        scoreMap[teamId].total += roundTotal;
-        scoreMap[teamId].rounds.push(parseFloat(roundTotal.toFixed(1)));
-      });
+                const ranked = Object.entries(scoreMap)
+                    .map(([teamId, v]) => ({
+                        teamId,
+                        teamName: v.teamName,
+                        total: Math.round((v.total / v.count) * 10) / 10,
+                        round: v.round,
+                    }))
+                    .sort((a, b) => b.total - a.total);
 
-      const sorted = Object.values(scoreMap).sort((a, b) => b.total - a.total);
-      setTeams(sorted);
-      setLoading(false);
-    });
-    return unsub;
-  }, []);
+                setEntries(ranked);
+                setLoading(false);
+            }
+        );
+        return unsub;
+    }, []);
 
-  if (loading) return (
-    <View style={{ flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" color="#9d4edd" />
-    </View>
-  );
+    const getInitial = (name: string) => name.charAt(0).toUpperCase();
 
-  const top3 = teams.slice(0, 3);
-  const rest = teams.slice(3);
+    const getAvatarColor = (index: number) => {
+        const colors = [
+            COLORS.purple,
+            COLORS.primary,
+            COLORS.orange,
+            COLORS.green,
+            COLORS.red,
+        ];
+        return colors[index % colors.length];
+    };
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Live Leaderboard</Text>
+    if (loading) {
+        return (
+            <View style={styles.loader}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
+        );
+    }
 
-      {teams.length === 0 ? (
-        <View style={styles.empty}>
-          <MaterialCommunityIcons name="trophy-outline" size={48} color="#333" />
-          <Text style={styles.emptyText}>Scores appear here after judging starts</Text>
+    const top3 = entries.slice(0, 3);
+    const rest = entries.slice(3);
+
+    return (
+        <View style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Ranking</Text>
+            </View>
+
+            <FlatList
+                data={rest}
+                keyExtractor={(item) => item.teamId}
+                contentContainerStyle={styles.content}
+                ListHeaderComponent={
+                    <>
+                        {/* Title */}
+                        <View style={styles.titleBlock}>
+                            <Text style={styles.title}>LEADERBOARD</Text>
+                            <Text style={styles.subtitle}>
+                                Weighted average of all judging criteria
+                            </Text>
+                        </View>
+
+                        {/* Podium */}
+                        {top3.length > 0 && (
+                            <View style={styles.podium}>
+                                {/* 2nd place */}
+                                {top3[1] && (
+                                    <View style={[styles.podiumItem, styles.podiumSecond]}>
+                                        <Text style={styles.podiumName}>
+                                            {top3[1].teamName}
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.podiumScore,
+                                                { color: PODIUM_COLORS[1] },
+                                            ]}
+                                        >
+                                            {top3[1].total}
+                                        </Text>
+                                        <View
+                                            style={[
+                                                styles.podiumBlock,
+                                                {
+                                                    height: 80,
+                                                    backgroundColor: COLORS.textSecondary + '33',
+                                                    borderColor: COLORS.textSecondary + '66',
+                                                },
+                                            ]}
+                                        >
+                                            <Text style={styles.podiumRank}>2ND</Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {/* 1st place */}
+                                {top3[0] && (
+                                    <View style={[styles.podiumItem, styles.podiumFirst]}>
+                                        <Text style={styles.podiumName}>
+                                            {top3[0].teamName}
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.podiumScore,
+                                                { color: PODIUM_COLORS[0] },
+                                            ]}
+                                        >
+                                            {top3[0].total}
+                                        </Text>
+                                        <View
+                                            style={[
+                                                styles.podiumBlock,
+                                                {
+                                                    height: 110,
+                                                    backgroundColor: COLORS.yellow + '22',
+                                                    borderColor: COLORS.yellow + '66',
+                                                },
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.podiumRank,
+                                                    { color: COLORS.yellow },
+                                                ]}
+                                            >
+                                                1ST
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
+
+                                {/* 3rd place */}
+                                {top3[2] && (
+                                    <View style={[styles.podiumItem, styles.podiumThird]}>
+                                        <Text style={styles.podiumName}>
+                                            {top3[2].teamName}
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.podiumScore,
+                                                { color: PODIUM_COLORS[2] },
+                                            ]}
+                                        >
+                                            {top3[2].total}
+                                        </Text>
+                                        <View
+                                            style={[
+                                                styles.podiumBlock,
+                                                {
+                                                    height: 65,
+                                                    backgroundColor: COLORS.orange + '22',
+                                                    borderColor: COLORS.orange + '44',
+                                                },
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.podiumRank,
+                                                    { color: COLORS.orange },
+                                                ]}
+                                            >
+                                                3RD
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
+                            </View>
+                        )}
+
+                        {/* Full rankings label */}
+                        {rest.length > 0 && (
+                            <Text style={styles.fullRankingsLabel}>FULL RANKINGS</Text>
+                        )}
+                    </>
+                }
+                renderItem={({ item, index }) => {
+                    const rank = index + 4;
+                    const isMyTeam = item.teamId === userData?.teamId;
+                    return (
+                        <View
+                            style={[
+                                styles.rankRow,
+                                isMyTeam && styles.rankRowHighlight,
+                            ]}
+                        >
+                            <Text style={styles.rankNum}>{rank}</Text>
+                            <View
+                                style={[
+                                    styles.avatar,
+                                    { backgroundColor: getAvatarColor(index) },
+                                ]}
+                            >
+                                <Text style={styles.avatarText}>
+                                    {getInitial(item.teamName)}
+                                </Text>
+                            </View>
+                            <Text style={styles.rankName} numberOfLines={1}>
+                                {item.teamName}
+                                {isMyTeam ? ' (You)' : ''}
+                            </Text>
+                            <Text style={styles.rankScore}>{item.total}</Text>
+                        </View>
+                    );
+                }}
+                ListEmptyComponent={
+                    entries.length === 0 ? (
+                        <View style={styles.empty}>
+                            <Ionicons
+                                name="trophy-outline"
+                                size={48}
+                                color={COLORS.textDim}
+                            />
+                            <Text style={styles.emptyText}>
+                                No scores yet. Stay tuned!
+                            </Text>
+                        </View>
+                    ) : null
+                }
+            />
         </View>
-      ) : (
-        <>
-          {/* Podium */}
-          <View style={styles.podiumContainer}>
-            {top3[1] && (
-              <View style={[styles.podiumCol, { height: 140 }]}>
-                <Text style={styles.podiumScore}>{top3[1].total.toFixed(1)}</Text>
-                <View style={[styles.podiumBlock, { backgroundColor: '#333' }]}>
-                  <Text style={styles.podiumRank}>2</Text>
-                  <Text style={styles.podiumName} numberOfLines={1}>{top3[1].teamName}</Text>
-                </View>
-              </View>
-            )}
-            {top3[0] && (
-              <View style={[styles.podiumCol, { height: 180 }]}>
-                <MaterialCommunityIcons name="crown" size={32} color="#ffb703" style={{ marginBottom: 4 }} />
-                <Text style={[styles.podiumScore, { color: '#ffb703' }]}>{top3[0].total.toFixed(1)}</Text>
-                <View style={[styles.podiumBlock, { backgroundColor: '#9d4edd' }]}>
-                  <Text style={[styles.podiumRank, { color: '#fff' }]}>1</Text>
-                  <Text style={[styles.podiumName, { color: '#fff' }]} numberOfLines={1}>{top3[0].teamName}</Text>
-                </View>
-              </View>
-            )}
-            {top3[2] && (
-              <View style={[styles.podiumCol, { height: 120 }]}>
-                <Text style={styles.podiumScore}>{top3[2].total.toFixed(1)}</Text>
-                <View style={[styles.podiumBlock, { backgroundColor: '#2a2a2a' }]}>
-                  <Text style={styles.podiumRank}>3</Text>
-                  <Text style={styles.podiumName} numberOfLines={1}>{top3[2].teamName}</Text>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* Full list */}
-          <View style={styles.listContainer}>
-            {teams.map((t, i) => (
-              <View key={t.id} style={styles.row}>
-                <View style={styles.rankBadge}>
-                  <Text style={styles.rankText}>{i + 1}</Text>
-                </View>
-                <View style={styles.rowInfo}>
-                  <Text style={styles.rowName}>{t.teamName}</Text>
-                  <Text style={styles.sparklineText}>Rounds: {t.rounds.join(' · ')}</Text>
-                </View>
-                <Text style={styles.rowScore}>{t.total.toFixed(1)}</Text>
-              </View>
-            ))}
-          </View>
-        </>
-      )}
-    </ScrollView>
-  );
+    );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  content: { padding: 16, paddingBottom: 100 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginBottom: 32, textAlign: 'center' },
-  empty: { alignItems: 'center', marginTop: 80 },
-  emptyText: { color: '#555', marginTop: 12, fontSize: 15, textAlign: 'center' },
-  podiumContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', marginBottom: 32 },
-  podiumCol: { flex: 1, alignItems: 'center', marginHorizontal: 4 },
-  podiumScore: { color: '#fff', fontWeight: 'bold', fontSize: 16, marginBottom: 8 },
-  podiumBlock: { width: '100%', flex: 1, alignItems: 'center', paddingTop: 12, borderTopLeftRadius: 8, borderTopRightRadius: 8 },
-  podiumRank: { color: '#a0a0a0', fontSize: 28, fontWeight: '900' },
-  podiumName: { color: '#a0a0a0', fontSize: 12, marginTop: 8, textAlign: 'center', paddingHorizontal: 4 },
-  listContainer: { backgroundColor: '#1e1e1e', borderRadius: 16, padding: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
-  rankBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#333', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  rankText: { color: '#a0a0a0', fontWeight: 'bold' },
-  rowInfo: { flex: 1 },
-  rowName: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  sparklineText: { color: '#666', fontSize: 11, marginTop: 2 },
-  rowScore: { color: '#9d4edd', fontSize: 18, fontWeight: 'bold' }
+    loader: {
+        flex: 1,
+        backgroundColor: COLORS.bg,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    container: { flex: 1, backgroundColor: COLORS.bg },
+    header: {
+        paddingTop: 56,
+        paddingHorizontal: SPACING.md,
+        paddingBottom: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    headerTitle: {
+        color: COLORS.textPrimary,
+        fontSize: FONTS.size.xl,
+        fontWeight: '800',
+    },
+    content: { paddingBottom: 100 },
+    titleBlock: {
+        paddingHorizontal: SPACING.md,
+        paddingTop: SPACING.lg,
+        marginBottom: SPACING.lg,
+    },
+    title: {
+        color: COLORS.textPrimary,
+        fontSize: FONTS.size.xxl,
+        fontWeight: '900',
+        letterSpacing: 3,
+    },
+    subtitle: {
+        color: COLORS.textSecondary,
+        fontSize: FONTS.size.sm,
+        marginTop: 4,
+    },
+    podium: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'flex-end',
+        paddingHorizontal: SPACING.md,
+        marginBottom: SPACING.xl,
+        gap: SPACING.sm,
+    },
+    podiumItem: { alignItems: 'center', flex: 1 },
+    podiumFirst: { marginBottom: 0 },
+    podiumSecond: { marginBottom: 0 },
+    podiumThird: { marginBottom: 0 },
+    podiumName: {
+        color: COLORS.textPrimary,
+        fontSize: FONTS.size.xs,
+        fontWeight: '700',
+        textAlign: 'center',
+        marginBottom: 4,
+    },
+    podiumScore: {
+        fontSize: FONTS.size.lg,
+        fontWeight: '900',
+        marginBottom: SPACING.xs,
+    },
+    podiumBlock: {
+        width: '100%',
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    podiumRank: {
+        color: COLORS.textSecondary,
+        fontSize: FONTS.size.sm,
+        fontWeight: '800',
+        letterSpacing: 1,
+    },
+    fullRankingsLabel: {
+        color: COLORS.textSecondary,
+        fontSize: FONTS.size.xs,
+        letterSpacing: 3,
+        fontWeight: '700',
+        textAlign: 'center',
+        marginBottom: SPACING.md,
+    },
+    rankRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.bgCard,
+        marginHorizontal: SPACING.md,
+        marginBottom: SPACING.sm,
+        borderRadius: RADIUS.md,
+        padding: SPACING.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        gap: SPACING.sm,
+    },
+    rankRowHighlight: {
+        borderColor: COLORS.primary + '66',
+        backgroundColor: COLORS.primary + '11',
+    },
+    rankNum: {
+        color: COLORS.textSecondary,
+        fontSize: FONTS.size.md,
+        fontWeight: '700',
+        width: 24,
+    },
+    avatar: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.sm,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    avatarText: {
+        color: COLORS.white,
+        fontSize: FONTS.size.md,
+        fontWeight: '800',
+    },
+    rankName: {
+        flex: 1,
+        color: COLORS.textPrimary,
+        fontSize: FONTS.size.md,
+        fontWeight: '600',
+    },
+    rankScore: {
+        color: COLORS.primary,
+        fontSize: FONTS.size.lg,
+        fontWeight: '900',
+    },
+    empty: {
+        alignItems: 'center',
+        paddingTop: 80,
+        gap: SPACING.md,
+    },
+    emptyText: {
+        color: COLORS.textSecondary,
+        fontSize: FONTS.size.md,
+    },
 });

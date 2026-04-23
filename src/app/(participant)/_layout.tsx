@@ -1,43 +1,81 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { COLORS } from '../../constants/theme';
 
 export default function ParticipantLayout() {
   return (
-    <Tabs screenOptions={{
-      headerShown: true,
-      tabBarStyle: { backgroundColor: '#1e1e1e', borderTopColor: '#333' },
-      tabBarActiveTintColor: '#9d4edd',
-      tabBarInactiveTintColor: '#888',
-      headerStyle: { backgroundColor: '#121212' },
-      headerTitleStyle: { color: '#fff' },
-      headerTintColor: '#fff',
-    }}>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: COLORS.bgCard,
+          borderTopColor: COLORS.border,
+          borderTopWidth: 1,
+          height: 65,
+          paddingBottom: 10,
+          paddingTop: 8,
+        },
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '600',
+          letterSpacing: 0.5,
+        },
+      }}
+    >
       <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="home-variant" size={24} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="advice"
+        options={{
+          title: 'Advice',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bulb" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="notices"
+        options={{
+          title: 'Notices',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="megaphone" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="schedule"
         options={{
           title: 'Schedule',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="calendar-clock" size={24} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: 'Leaderboard',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="trophy" size={24} color={color} />,
+          title: 'Ranking',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="trophy" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="submission"
+        name="submit"
         options={{
           title: 'Submit',
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="upload" size={24} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="cloud-upload" size={size} color={color} />
+          ),
         }}
       />
     </Tabs>

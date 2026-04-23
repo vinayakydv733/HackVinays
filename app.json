@@ -36,7 +36,8 @@
           }
         }
       ],
-      "expo-image"
+      "expo-image",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,
