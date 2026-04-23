@@ -15,7 +15,7 @@ export default function AdminLayout() {
           paddingBottom: 10,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: COLORS.orange,
+        tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textSecondary,
         tabBarLabelStyle: {
           fontSize: 10,
@@ -34,20 +34,11 @@ export default function AdminLayout() {
         }}
       />
       <Tabs.Screen
-        name="announce"
+        name="teams"
         options={{
-          title: 'Announce',
+          title: 'Teams',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="megaphone" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="schedule"
-        options={{
-          title: 'Schedule',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={size} color={color} />
+            <Ionicons name="people" size={size} color={color} />
           ),
         }}
       />
@@ -61,14 +52,31 @@ export default function AdminLayout() {
         }}
       />
       <Tabs.Screen
-        name="leaderboard"
+        name="broadcast"
         options={{
-          title: 'Ranking',
+          title: 'Broadcast',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="trophy" size={size} color={color} />
+            <Ionicons name="megaphone" size={size} color={color} />
           ),
         }}
       />
+      <Tabs.Screen
+        name="volunteers"
+        options={{
+          title: 'Volunteers',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="id-card" size={size} color={color} />
+          ),
+        }}
+      />
+
+      {/* HIDE EXTRA SCREENS FROM THE TAB BAR 
+        If you create other files in the (admin) folder, add them here with href: null
+        so they don't break your bottom navigation UI! 
+      */}
+      <Tabs.Screen name="resources" options={{ href: null }} />
+      <Tabs.Screen name="mentors" options={{ href: null }} />
+      <Tabs.Screen name="analytics" options={{ href: null }} />
     </Tabs>
   );
 }

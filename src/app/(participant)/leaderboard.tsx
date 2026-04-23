@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     },
     title: {
         color: COLORS.textPrimary,
-        fontSize: FONTS.size.xxl,
+        fontSize: FONTS.size.xl,
         fontWeight: '900',
         letterSpacing: 3,
     },

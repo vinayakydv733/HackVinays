@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,14 +17,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+// IMPORTANT: Ensure these paths point to your actual component and config files
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 import { registerUser } from '../../firebase/auth';
-
-// IMPORTANT: Import your Firebase database instance here
-// import { collection, getDocs } from 'firebase/firestore';
-// import { db } from '../../firebase/config';
+import { db } from '../../firebase/config';
 
 // Replace these URIs with your actual image paths, e.g., source: require('../../assets/college.png')
 const PARTNER_LOGOS = [
@@ -50,28 +50,26 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Fetch teams from Firebase on component mount
+  // Fetch teams from Firebase in real-time
   useEffect(() => {
-    const fetchTeams = async () => {
-      try {
-        /* --- UNCOMMENT AND UPDATE THIS FOR YOUR FIREBASE SETUP ---
-        const querySnapshot = await getDocs(collection(db, 'teams'));
-        const fetchedTeams = querySnapshot.docs.map(doc => doc.data().name);
-        setTeams(fetchedTeams);
-        -------------------------------------------------------- */
+    const teamsRef = collection(db, 'teams');
+    // Order alphabetically so the dropdown is organized
+    const q = query(teamsRef, orderBy('name', 'asc'));
 
-        // Mock data for demonstration purposes
-        setTimeout(() => {
-          setTeams(['Cyber Ninjas', 'Code Crusaders', 'Byte Me', 'Hackaholics', 'Data Miners', 'Web Wizards']);
-          setLoadingTeams(false);
-        }, 1000);
-      } catch (error) {
-        Alert.alert('Error', 'Failed to load teams. Please try again.');
-        setLoadingTeams(false);
-      }
-    };
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      // Extract just the team names into an array of strings
+      const fetchedTeams = snapshot.docs.map(doc => doc.data().name);
+      
+      setTeams(fetchedTeams);
+      setLoadingTeams(false);
+    }, (error) => {
+      console.error("Error fetching teams for register dropdown: ", error);
+      Alert.alert('Error', 'Failed to load teams. Please check your connection.');
+      setLoadingTeams(false);
+    });
 
-    fetchTeams();
+    // Cleanup the listener when the user leaves the register page
+    return () => unsubscribe();
   }, []);
 
   const validate = () => {
@@ -313,7 +311,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: COLORS.textPrimary,
-    fontSize: FONTS.size.xxl,
+    fontSize: FONTS.size.xl,
     fontWeight: '800',
     marginBottom: SPACING.xs,
   },
@@ -424,7 +422,7 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACING.xl,
   },
 
-  // Modal Styles
+  // Modal Styles - Locked to High Contrast Light Mode
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',

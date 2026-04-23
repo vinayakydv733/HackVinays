@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: COLORS.textPrimary,
-    fontSize: FONTS.size.xxxl,
+    fontSize: FONTS.size.xl,
     fontWeight: '800',
     marginBottom: SPACING.xs,
   },

@@ -26,8 +26,8 @@ export const FONTS = {
     md: 15,
     lg: 18,
     xl: 22,
-    xxl: 28,
-    xxxl: 36,
+    xl: 28,
+    xl: 36,
   },
 } as const;
 

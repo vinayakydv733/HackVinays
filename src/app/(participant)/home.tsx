@@ -1,21 +1,21 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-    collection,
-    doc,
-    onSnapshot,
-    query,
-    where,
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  where,
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
   teamStat: { alignItems: 'center' },
   statNum: {
     color: COLORS.textPrimary,
-    fontSize: FONTS.size.xxl,
+    fontSize: FONTS.size.xl,
     fontWeight: '800',
   },
   statLabel: {
