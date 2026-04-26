@@ -26,7 +26,7 @@ export default function Index() {
     if (userData.role === 'admin') {
       router.replace('/(admin)/dashboard');
     } else if (userData.role === 'volunteer') {
-      router.replace('/(volunteer)/home');
+      router.replace('/(volunteer)' as any);
     } else {
       router.replace('/(participant)/home');
     }

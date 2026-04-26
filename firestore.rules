@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'admin';
+    }
+    
+    function isParticipant() {
+      return isAuthenticated() && getUserData().role == 'participant';
+    }
+
+    // Admins can do everything
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+    
+    // Users Collection
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      // Allow new users to create their own profile, but force role to 'participant'
+      allow create: if isAuthenticated() && request.auth.uid == userId && request.resource.data.role == 'participant';
+      // Users can update their own profile, but cannot change their role
+      allow update: if isAuthenticated() && request.auth.uid == userId && request.resource.data.role == resource.data.role;
+    }
+    
+    // Teams Collection
+    match /teams/{teamId} {
+      // Any authenticated user can read teams (e.g. for Leaderboard)
+      allow read: if isAuthenticated();
+      // Participants can update their own team's data (e.g. submissions)
+      allow update: if isParticipant() && teamId == getUserData().teamId;
+    }
+    
+    // Advice Collection
+    match /advice/{adviceId} {
+      // Participants can read advice assigned to their team
+      allow read: if isParticipant() && resource.data.teamId == getUserData().teamId;
+      // Participants can update their advice (e.g. mark as implemented)
+      allow update: if isParticipant() && resource.data.teamId == getUserData().teamId;
+    }
+    
+    // Mentors Collection
+    match /mentors/{mentorId} {
+      // Anyone can see mentors list
+      allow read: if isAuthenticated();
+    }
+    
+    // Resources Collection
+    match /resources/{resourceId} {
+      allow read: if isAuthenticated();
+    }
+  }
+}

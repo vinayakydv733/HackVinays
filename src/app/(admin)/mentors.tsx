@@ -118,11 +118,16 @@ export default function AdminMentors() {
     }
     setIsSendingAdvice(true);
     try {
+      const selectedTeam = teams.find(t => t.name === adviceTeamName);
       // Save to a new 'advice' collection that the Participant app will read
       await addDoc(collection(db, 'advice'), {
         mentorName: advisingMentor?.name,
+        teamId: selectedTeam?.id,
         teamName: adviceTeamName,
-        message: adviceMessage.trim(),
+        content: adviceMessage.trim(),
+        type: 'suggestion',
+        round: 1,
+        implemented: false,
         createdAt: Date.now(),
       });
       setAdviceMessage('');

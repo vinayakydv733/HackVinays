@@ -1,29 +1,28 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { collection, doc, onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, onSnapshot, query, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Button from '../../components/ui/Button';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 import { db } from '../../firebase/config';
 
-// The data structure that participants will send to Firebase
 interface HelpRequest {
   id: string;
-  type: 'sos' | 'pass_restroom' | 'pass_game' | 'tech';
-  status: 'pending' | 'active' | 'resolved';
+  type: string;
+  status: string;
   teamName: string;
   userName: string;
   message?: string;
+  volunteerName?: string;
   createdAt: number;
 }
 
@@ -31,225 +30,203 @@ export default function AdminRequests() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [activeTab, setActiveTab] = useState<'sos' | 'passes' | 'tech'>('passes');
+  const [activeTab, setActiveTab] = useState<'sos' | 'passes' | 'tech'>('sos');
   const [requests, setRequests] = useState<HelpRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch all requests in real-time
   useEffect(() => {
-    const q = query(collection(db, 'help_requests'), orderBy('createdAt', 'desc'));
+    // 1. Listen to ALL requests without any filters to be 100% sure we see data
+    const q = collection(db, 'help_requests');
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as HelpRequest[];
       
-      // Keep SOS requests at the very top if they are pending, regardless of time
-      fetched.sort((a, b) => {
-        if (a.type === 'sos' && a.status === 'pending' && b.type !== 'sos') return -1;
-        if (b.type === 'sos' && b.status === 'pending' && a.type !== 'sos') return 1;
-        return 0;
-      });
-
+      // 2. Manual sort by newest first
+      fetched.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      
       setRequests(fetched);
       setLoading(false);
+    }, (err) => {
+      console.error("Firestore Error:", err);
     });
-
     return () => unsubscribe();
   }, []);
 
-  const updateStatus = async (id: string, newStatus: 'active' | 'resolved') => {
+  const updateStatus = async (id: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, 'help_requests', id), { status: newStatus });
+      await updateDoc(doc(db, 'help_requests', id), { 
+        status: newStatus,
+        volunteerName: 'Admin',
+        volunteerId: 'admin'
+      });
     } catch (error) {
-      Alert.alert('Error', 'Failed to update request status.');
+      Alert.alert('Error', 'Failed to update status.');
     }
   };
 
-  // Filter logic based on the active tab
+  const deleteRequest = async (id: string) => {
+    Alert.alert("Delete", "Permanently remove this request?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        await deleteDoc(doc(db, 'help_requests', id));
+      }}
+    ]);
+  };
+
   const getFilteredRequests = () => {
     return requests.filter(req => {
-      if (activeTab === 'sos') return req.type === 'sos';
-      if (activeTab === 'passes') return req.type === 'pass_restroom' || req.type === 'pass_game';
-      if (activeTab === 'tech') return req.type === 'tech';
+      const type = (req.type || '').toLowerCase();
+      if (activeTab === 'sos') return type === 'sos';
+      if (activeTab === 'passes') return type.includes('pass');
+      if (activeTab === 'tech') return type === 'tech';
       return true;
     });
   };
 
-  const getCardStyle = (type: string, status: string) => {
-    if (status === 'resolved') return styles.cardResolved;
-    if (type === 'sos') return styles.cardSOS;
-    if (type === 'pass_game' || type === 'pass_restroom') return styles.cardPass;
-    return styles.cardTech; // Tech
+  const counts = {
+    sos: requests.filter(r => (r.type || '').toLowerCase() === 'sos' && (r.status || '').toLowerCase() === 'pending').length,
+    passes: requests.filter(r => (r.type || '').toLowerCase().includes('pass') && (r.status || '').toLowerCase() === 'pending').length,
+    tech: requests.filter(r => (r.type || '').toLowerCase() === 'tech' && (r.status || '').toLowerCase() === 'pending').length,
   };
-
-  const getTypeLabel = (type: string) => {
-    switch(type) {
-      case 'sos': return { label: 'EMERGENCY / SOS', icon: 'warning', color: '#E74C3C' };
-      case 'pass_restroom': return { label: 'RESTROOM PASS', icon: 'water', color: '#3498DB' };
-      case 'pass_game': return { label: 'GAME ROOM PASS', icon: 'game-controller', color: '#9B59B6' };
-      case 'tech': return { label: 'TECH SUPPORT', icon: 'hardware-chip', color: '#F39C12' };
-      default: return { label: 'REQUEST', icon: 'help-circle', color: COLORS.textSecondary };
-    }
-  };
-
-  const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const pendingSOSCount = requests.filter(r => r.type === 'sos' && r.status === 'pending').length;
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Help Desk & Passes</Text>
+        <View>
+          <Text style={styles.headerTitle}>Help Desk</Text>
+          <Text style={styles.headerSubtitle}>{requests.length} Requests Found</Text>
+        </View>
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Segmented Tabs */}
+      {/* Tabs */}
       <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tabBtn, activeTab === 'sos' && styles.tabBtnSOS]}
-          onPress={() => setActiveTab('sos')}
-        >
-          <Text style={[styles.tabText, activeTab === 'sos' && { color: '#FFF' }]}>
-            SOS {pendingSOSCount > 0 ? `(${pendingSOSCount})` : ''}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tabBtn, activeTab === 'passes' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('passes')}
-        >
-          <Text style={[styles.tabText, activeTab === 'passes' && { color: '#FFF' }]}>Passes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tabBtn, activeTab === 'tech' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('tech')}
-        >
-          <Text style={[styles.tabText, activeTab === 'tech' && { color: '#FFF' }]}>Tech</Text>
-        </TouchableOpacity>
+        <TabItem label="SOS" count={counts.sos} active={activeTab === 'sos'} onPress={() => setActiveTab('sos')} color="#ef4444" />
+        <TabItem label="PASSES" count={counts.passes} active={activeTab === 'passes'} onPress={() => setActiveTab('passes')} color={COLORS.primary} />
+        <TabItem label="TECH" count={counts.tech} active={activeTab === 'tech'} onPress={() => setActiveTab('tech')} color="#eab308" />
       </View>
 
-      {/* Requests List */}
       {loading ? (
-        <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: SPACING.xl }} />
+        <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
       ) : (
         <FlatList
           data={getFilteredRequests()}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.list}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="checkmark-done-circle-outline" size={48} color={COLORS.border} />
-              <Text style={styles.emptyText}>No active requests in this category.</Text>
+            <View style={styles.empty}>
+              <Ionicons name="notifications-off-outline" size={48} color={COLORS.border} />
+              <Text style={styles.emptyText}>No {activeTab} requests pending.</Text>
             </View>
           }
-          renderItem={({ item }) => {
-            const config = getTypeLabel(item.type);
-            
-            return (
-              <View style={[styles.card, getCardStyle(item.type, item.status)]}>
-                {/* Card Header */}
-                <View style={styles.cardHeaderRow}>
-                  <View style={styles.typeBadge}>
-                    <Ionicons name={config.icon as any} size={14} color={config.color} />
-                    <Text style={[styles.typeBadgeText, { color: config.color }]}>{config.label}</Text>
-                  </View>
-                  <Text style={styles.timeText}>{formatTime(item.createdAt)}</Text>
-                </View>
-
-                {/* Participant Info */}
-                <Text style={styles.teamName}>{item.teamName}</Text>
-                <Text style={styles.userName}>Participant: {item.userName}</Text>
-                
-                {/* Optional Message */}
-                {item.message && (
-                  <View style={styles.messageBox}>
-                    <Text style={styles.messageText}>{item.message}</Text>
-                  </View>
-                )}
-
-                {/* Actions Based on Status */}
-                <View style={styles.actionContainer}>
-                  {item.status === 'pending' && (
-                    <Button 
-                      title={item.type.includes('pass') ? "ISSUE PASS" : "ACCEPT TICKET"} 
-                      onPress={() => updateStatus(item.id, 'active')}
-                      style={styles.acceptBtn}
-                    />
-                  )}
-
-                  {item.status === 'active' && (
-                    <Button 
-                      title={item.type.includes('pass') ? "MARK RETURNED" : "MARK RESOLVED"} 
-                      onPress={() => updateStatus(item.id, 'resolved')}
-                      style={styles.resolveBtn}
-                    />
-                  )}
-
-                  {item.status === 'resolved' && (
-                    <View style={styles.resolvedBadge}>
-                      <Ionicons name="checkmark-circle" size={16} color="#2ECC71" />
-                      <Text style={styles.resolvedText}>COMPLETED</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            );
-          }}
+          renderItem={({ item }) => (
+            <RequestCard 
+              item={item} 
+              onApprove={() => updateStatus(item.id, 'active')}
+              onResolve={() => updateStatus(item.id, 'resolved')}
+              onDelete={() => deleteRequest(item.id)}
+            />
+          )}
         />
       )}
     </View>
   );
 }
 
+const TabItem = ({ label, count, active, onPress, color }: any) => (
+  <TouchableOpacity onPress={onPress} style={[styles.tab, active && { borderColor: color, backgroundColor: color + '15' }]}>
+    <Text style={[styles.tabLabel, active && { color }]}>{label}</Text>
+    {count > 0 && <View style={[styles.badge, { backgroundColor: color }]}><Text style={styles.badgeText}>{count}</Text></View>}
+  </TouchableOpacity>
+);
+
+const RequestCard = ({ item, onApprove, onResolve, onDelete }: any) => {
+  const status = (item.status || '').toLowerCase();
+  const type = (item.type || '').toLowerCase();
+  
+  const isPending = status === 'pending';
+  const isActive = status === 'active';
+  const isResolved = status === 'resolved';
+  const isPass = type.includes('pass');
+
+  const typeConfig = {
+    sos: { label: 'SOS', icon: 'medical', color: '#ef4444' },
+    pass_game: { label: 'GAME ROOM', icon: 'game-controller', color: '#0ea5e9' },
+    pass_restroom: { label: 'RESTROOM', icon: 'water', color: '#ec4899' },
+    tech: { label: 'TECH SUPPORT', icon: 'build', color: '#eab308' },
+  }[type as 'sos' | 'pass_game' | 'pass_restroom' | 'tech'] || { label: 'REQUEST', icon: 'help', color: '#94a3b8' };
+
+  return (
+    <View style={[styles.card, type === 'sos' && isPending && styles.cardSOS, isResolved && { opacity: 0.5 }]}>
+      <View style={styles.cardHeader}>
+        <View style={styles.tag}><Ionicons name={typeConfig.icon as any} size={10} color={typeConfig.color} /><Text style={[styles.tagText, { color: typeConfig.color }]}>{typeConfig.label}</Text></View>
+        <View style={styles.cardHeaderRight}>
+          <Text style={styles.time}>{item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now'}</Text>
+          {isResolved && <TouchableOpacity onPress={onDelete}><Ionicons name="trash-outline" size={16} color="#ef4444" /></TouchableOpacity>}
+        </View>
+      </View>
+      <Text style={styles.team}>{item.teamName || 'Unknown Team'}</Text>
+      <Text style={styles.user}>{item.userName || 'Unknown Hacker'}</Text>
+
+      {item.volunteerName ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+          <Ionicons name="person-outline" size={12} color={COLORS.textSecondary} />
+          <Text style={{ fontSize: 12, color: COLORS.textSecondary, fontWeight: 'bold' }}>
+            {isActive ? 'Claimed by ' : 'Resolved by '}{item.volunteerName}
+          </Text>
+        </View>
+      ) : null}
+      
+      {item.message ? (
+        <View style={styles.messageBox}>
+          <Text style={styles.messageText}>{item.message}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.actions}>
+        {isPending && <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.primary }]} onPress={onApprove}><Text style={styles.btnText}>APPROVE</Text></TouchableOpacity>}
+        {isActive && <TouchableOpacity style={[styles.btn, { backgroundColor: '#10b981' }]} onPress={onResolve}><Text style={styles.btnText}>{isPass ? 'RETURN PASS' : 'RESOLVE'}</Text></TouchableOpacity>}
+        {isResolved && <View style={styles.done}><Ionicons name="checkmark-circle" size={16} color="#10b981" /><Text style={styles.doneText}>{isPass ? 'RETURNED' : 'COMPLETED'}</Text></View>}
+      </View>
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md,
-    backgroundColor: COLORS.bgCard, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  iconButton: { padding: SPACING.xs },
-  headerTitle: { fontSize: FONTS.size.lg, fontWeight: 'bold', color: COLORS.textPrimary },
-  
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.lg, backgroundColor: COLORS.bgCard, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.textPrimary },
+  headerSubtitle: { fontSize: 10, color: COLORS.textDim, textTransform: 'uppercase' },
   tabContainer: { flexDirection: 'row', padding: SPACING.md, gap: SPACING.sm },
-  tabBtn: { flex: 1, paddingVertical: SPACING.sm, alignItems: 'center', borderRadius: RADIUS.sm, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border },
-  tabBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  tabBtnSOS: { backgroundColor: '#E74C3C', borderColor: '#E74C3C' },
-  tabText: { fontSize: FONTS.size.sm, fontWeight: 'bold', color: COLORS.textSecondary },
-  
-  listContent: { padding: SPACING.lg, paddingBottom: SPACING.xl, gap: SPACING.md },
-  
-  card: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.lg, borderWidth: 1 },
-  cardSOS: { borderColor: '#E74C3C', backgroundColor: '#E74C3C0A' },
-  cardPass: { borderColor: COLORS.border }, // Default look
-  cardTech: { borderColor: '#F39C1288', backgroundColor: '#F39C1205' },
-  cardResolved: { borderColor: COLORS.border, opacity: 0.6, backgroundColor: '#F9F9F9' }, // Faded when done
-
-  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-  typeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border },
-  typeBadgeText: { fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' },
-  timeText: { fontSize: FONTS.size.xs, color: COLORS.textSecondary, fontWeight: '500' },
-
-  teamName: { fontSize: FONTS.size.xl, fontWeight: '800', color: COLORS.textPrimary },
-  userName: { fontSize: FONTS.size.sm, color: COLORS.textSecondary, marginBottom: SPACING.sm },
-  
-  messageBox: { backgroundColor: COLORS.bg, padding: SPACING.sm, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.md },
-  messageText: { fontSize: FONTS.size.sm, color: COLORS.textPrimary, fontStyle: 'italic' },
-
-  actionContainer: { marginTop: SPACING.xs },
-  acceptBtn: { backgroundColor: COLORS.primary },
-  resolveBtn: { backgroundColor: '#2ECC71', borderColor: '#2ECC71' },
-  
-  resolvedBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: SPACING.sm },
-  resolvedText: { fontSize: FONTS.size.sm, fontWeight: 'bold', color: '#2ECC71' },
-
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: SPACING.xl },
-  emptyText: { marginTop: SPACING.md, color: COLORS.textSecondary, fontSize: FONTS.size.md },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, backgroundColor: COLORS.bgCard, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
+  tabLabel: { fontSize: 10, fontWeight: 'bold', color: COLORS.textSecondary },
+  badge: { paddingHorizontal: 6, borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center' },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  list: { padding: SPACING.lg, gap: SPACING.md },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  empty: { alignItems: 'center', marginTop: 100, opacity: 0.5 },
+  emptyText: { color: COLORS.textSecondary, marginTop: 12 },
+  card: { backgroundColor: COLORS.bgCard, borderRadius: 16, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border },
+  cardSOS: { borderColor: '#ef4444', backgroundColor: '#ef444408' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border },
+  tagText: { fontSize: 9, fontWeight: '900' },
+  time: { fontSize: 10, color: COLORS.textDim },
+  team: { fontSize: 18, fontWeight: 'bold', color: COLORS.textPrimary },
+  user: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 12 },
+  messageBox: { backgroundColor: COLORS.bg, padding: 12, borderRadius: 8, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: COLORS.primary },
+  messageText: { fontSize: 13, color: COLORS.textPrimary, fontStyle: 'italic' },
+  actions: { marginTop: 4 },
+  btn: { paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+  btnText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  done: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  doneText: { color: '#10b981', fontSize: 11, fontWeight: 'bold' },
 });

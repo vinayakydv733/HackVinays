@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -9,7 +8,6 @@ import {
     View,
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
-import { db } from '../../firebase/config';
 
 type EventType = 'event' | 'speaker' | 'break' | 'meal';
 
@@ -31,36 +29,38 @@ interface TypeConfigItem {
 
 const TYPE_CONFIG: { [key in EventType]: TypeConfigItem } = {
   event:   { color: COLORS.primary, icon: 'calendar',    label: 'EVENT'   },
-  speaker: { color: COLORS.purple,  icon: 'mic',         label: 'SPEAKER' },
-  break:   { color: COLORS.orange,  icon: 'cafe',        label: 'BREAK'   },
+  speaker: { color: COLORS.purple,  icon: 'mic',         label: 'MENTORING' },
+  break:   { color: COLORS.orange,  icon: 'happy',       label: 'ACTIVITY' },
   meal:    { color: COLORS.green,   icon: 'restaurant',  label: 'MEAL'    },
 };
 
+const HARDCODED_SCHEDULE: ScheduleEvent[] = [
+  { id: '1', date: '2026-05-02', time: '09:00', title: 'Hackathon Day 1 Begins', description: 'Reporting at the Venue', location: 'JIT Borawan, Khargone', type: 'event' },
+  { id: '2', date: '2026-05-02', time: '09:30', title: 'Breakfast', description: '', type: 'meal' },
+  { id: '3', date: '2026-05-02', time: '10:00', title: 'Opening Ceremony', description: '', type: 'event' },
+  { id: '4', date: '2026-05-02', time: '11:00', title: 'Hacking Begins', description: '', type: 'event' },
+  { id: '5', date: '2026-05-02', time: '13:00', title: 'Mentoring Round 1', description: '', type: 'speaker' },
+  { id: '6', date: '2026-05-02', time: '14:00', title: 'Lunch', description: '', type: 'meal' },
+  { id: '7', date: '2026-05-02', time: '18:00', title: 'Mentoring Round 2', description: '', type: 'speaker' },
+  { id: '8', date: '2026-05-02', time: '20:30', title: 'Dinner', description: '', type: 'meal' },
+  { id: '9', date: '2026-05-02', time: '22:30', title: 'Fun Activity', description: '', type: 'break' },
+  { id: '10', date: '2026-05-03', time: '09:00', title: 'Breakfast', description: '', type: 'meal' },
+  { id: '11', date: '2026-05-03', time: '10:00', title: 'Final Presentation Round', description: '', type: 'event' },
+  { id: '12', date: '2026-05-03', time: '11:30', title: 'Closing Ceremony & Felicitation', description: '', type: 'event' }
+];
+
 export default function Schedule() {
-  const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [groupedEvents, setGroupedEvents] = useState<{ [key: string]: ScheduleEvent[] }>({});
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'events'),
-      orderBy('date', 'asc')
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(
-        (d) => ({ id: d.id, ...d.data() } as ScheduleEvent)
-      );
-      setEvents(data);
-
-      const grouped: { [key: string]: ScheduleEvent[] } = {};
-      data.forEach((e) => {
-        if (!grouped[e.date]) grouped[e.date] = [];
-        grouped[e.date].push(e);
-      });
-      setGroupedEvents(grouped);
-      setLoading(false);
+    const grouped: { [key: string]: ScheduleEvent[] } = {};
+    HARDCODED_SCHEDULE.forEach((e) => {
+      if (!grouped[e.date]) grouped[e.date] = [];
+      grouped[e.date].push(e);
     });
-    return unsub;
+    setGroupedEvents(grouped);
+    setLoading(false);
   }, []);
 
   if (loading) {
@@ -156,7 +156,7 @@ export default function Schedule() {
           </View>
         ))}
 
-        {events.length === 0 && (
+        {Object.keys(groupedEvents).length === 0 && (
           <View style={styles.empty}>
             <Ionicons
               name="calendar-outline"

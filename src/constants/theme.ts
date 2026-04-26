@@ -20,14 +20,15 @@ export const COLORS = {
 
 export const FONTS = {
   regular: 'System',
+  mono: 'monospace',
   size: {
     xs: 11,
     sm: 13,
     md: 15,
     lg: 18,
     xl: 22,
-    xl: 28,
-    xl: 36,
+    xxl: 28,
+    xxxl: 36,
   },
 } as const;
 
@@ -45,3 +46,7 @@ export const SPACING = {
   lg: 24,
   xl: 32,
 } as const;
+
+export const MaxContentWidth = 960;
+
+export type ThemeColor = keyof typeof COLORS;

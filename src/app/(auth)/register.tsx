@@ -40,9 +40,10 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [teamName, setTeamName] = useState('');
+  const [teamId, setTeamId] = useState('');
   
   // States for fetching and filtering teams
-  const [teams, setTeams] = useState<string[]>([]);
+  const [teams, setTeams] = useState<{id: string, name: string}[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,8 +58,8 @@ export default function Register() {
     const q = query(teamsRef, orderBy('name', 'asc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      // Extract just the team names into an array of strings
-      const fetchedTeams = snapshot.docs.map(doc => doc.data().name);
+      // Extract the team objects
+      const fetchedTeams = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
       
       setTeams(fetchedTeams);
       setLoadingTeams(false);
@@ -96,7 +97,8 @@ export default function Register() {
         password,
         'participant',
         teamName,
-        '' 
+        '',
+        teamId
       );
       
       router.replace('/(participant)/home');
@@ -114,7 +116,7 @@ export default function Register() {
 
   // Filter teams based on search query
   const filteredTeams = teams.filter(team => 
-    team.toLowerCase().includes(searchQuery.toLowerCase())
+    team.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleCloseModal = () => {
@@ -258,17 +260,18 @@ export default function Register() {
 
             <FlatList
               data={filteredTeams}
-              keyExtractor={(item) => item}
+              keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity 
                   style={styles.teamOption}
                   onPress={() => {
-                    setTeamName(item);
+                    setTeamName(item.name);
+                    setTeamId(item.id);
                     handleCloseModal();
                   }}
                 >
-                  <Text style={styles.teamOptionText}>{item}</Text>
+                  <Text style={styles.teamOptionText}>{item.name}</Text>
                 </TouchableOpacity>
               )}
               ItemSeparatorComponent={() => <View style={styles.separator} />}

@@ -1,8 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
 import { COLORS } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function AdminLayout() {
+  const { userData, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.bg, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color={COLORS.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (!userData || userData.role !== 'admin') {
+    return <Redirect href="/" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -52,6 +68,15 @@ export default function AdminLayout() {
         }}
       />
       <Tabs.Screen
+        name="volunteers"
+        options={{
+          title: 'Volunteers',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="broadcast"
         options={{
           title: 'Broadcast',
@@ -60,23 +85,17 @@ export default function AdminLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="volunteers"
-        options={{
-          title: 'Volunteers',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="id-card" size={size} color={color} />
-          ),
-        }}
-      />
+
 
       {/* HIDE EXTRA SCREENS FROM THE TAB BAR 
         If you create other files in the (admin) folder, add them here with href: null
         so they don't break your bottom navigation UI! 
       */}
-      <Tabs.Screen name="resources" options={{ href: null }} />
       <Tabs.Screen name="mentors" options={{ href: null }} />
       <Tabs.Screen name="analytics" options={{ href: null }} />
+      <Tabs.Screen name="leaderboard" options={{ href: null }} />
+      <Tabs.Screen name="requests" options={{ href: null }} />
+      <Tabs.Screen name="resources" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -3,12 +3,12 @@ import { useRouter } from 'expo-router';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 import { logoutUser } from '../../firebase/auth';
@@ -68,7 +68,7 @@ export default function AdminDashboard() {
 
   const handleLogout = async () => {
     await logoutUser();
-    router.replace('/sign-in'); 
+    router.replace('/(auth)/login'); 
   };
 
   const adminModules = [
@@ -76,10 +76,11 @@ export default function AdminDashboard() {
     { title: 'Judging', icon: 'gavel', route: '/(admin)/judging', color: '#E67E22' },
     { title: 'Mentors', icon: 'account-tie', route: '/(admin)/mentors', color: '#9B59B6' },
     { title: 'Help Desk', icon: 'ticket-confirmation', route: '/(admin)/requests', color: '#3498DB' },
-    { title: 'Broadcast', icon: 'bullhorn', route: '/(admin)/broadcast', color: '#E74C3C' },
-    { title: 'Resources', icon: 'usb-cable', route: '/(admin)/resources', color: '#F1C40F' },
+    { title: 'announce', icon: 'bullhorn', route: '/(admin)/announce', color: '#E74C3C' },
+    { title: 'Resources', icon: 'package-variant', route: '/(admin)/resources', color: '#F1C40F' },
     { title: 'Volunteers', icon: 'hand-heart', route: '/(admin)/volunteers', color: '#1ABC9C' },
-    { title: 'Analytics', icon: 'chart-bar', route: '/(admin)/analytics', color: '#34495E' },
+    { title: 'Timer', icon: 'timer-outline', route: '/(admin)/timer', color: '#E84393' },
+    { title: 'Analytics', icon: 'chart-line', route: '/(admin)/analytics', color: '#34495E' },
   ];
 
   return (

@@ -1,0 +1,72 @@
+================================================================================
+HACKATHON VOLUNTEER PANEL SPECIFICATION
+================================================================================
+Project: HackVinays
+Module: Volunteer Control System
+Date: 2026-04-25
+
+1. MODULE OVERVIEW
+--------------------------------------------------------------------------------
+The Volunteer Panel is designed for event staff to manage on-ground operations
+using QR code scanning and real-time task tracking. It bridges the gap between
+Participant needs and Admin oversight.
+
+2. CORE FEATURES
+--------------------------------------------------------------------------------
+
+[A] ULTIMATE QR SCANNER
+    - Capability: Real-time camera scanning using Expo-Camera.
+    - Logic: Parses Team IDs from Participant QR codes.
+    - Integration: Instantly pulls team details from Firestore upon scan.
+
+[B] MEAL MANAGEMENT SYSTEM
+    - Purpose: Track food distribution and prevent double-dipping.
+    - Categories: Lunch, Dinner, Snacks, Breakfast.
+    - Validation: Checks if the team has already received the specific meal
+      before allowing a "Grant Meal" action.
+
+[C] ATTENDANCE & STATUS
+    - Action: "Mark as Arrived" - Updates team status to 'Checked In'.
+    - Action: "Verify Location" - Confirm team is at their designated table.
+    - Visuals: Updates the live "Table Count" on the Admin Dashboard.
+
+[D] VOLUNTEER TASK BOARD
+    - View: List of assigned duties from Admin.
+    - Interaction: Checkbox to mark tasks as "Completed".
+    - Categories: Logistics, Mentorship, Crowd Control, Technical.
+
+3. SCREEN MAP (FILE STRUCTURE)
+--------------------------------------------------------------------------------
+/app/(volunteer)/
+├── _layout.tsx      -> Tab Navigation (Home, Scanner, Tasks, Profile)
+├── index.tsx        -> DASHBOARD (Live stats: Meals served, Teams arrived)
+├── scanner.tsx      -> CAMERA VIEW (Scanning logic & Quick Action Popups)
+├── tasks.tsx        -> TASK LIST (Duty management)
+└── profile.tsx      -> VOLUNTEER INFO (Logout & Personal stats)
+
+4. DATA SCHEMA (FIRESTORE)
+--------------------------------------------------------------------------------
+Collection: "meals"
+- id: auto-gen
+- teamId: string
+- mealType: "lunch" | "dinner" | "snack"
+- servedBy: string (volunteerId)
+- timestamp: number
+
+Collection: "volunteer_tasks"
+- id: auto-gen
+- title: string
+- description: string
+- status: "pending" | "completed"
+- assignedTo: "all" | string (volunteerId)
+
+5. USER EXPERIENCE (UX) GOALS
+--------------------------------------------------------------------------------
+- HIGH CONTRAST: Easy to read in dark or bright event lighting.
+- ONE-TAP ACTIONS: Minimizing the time a volunteer spends looking at the phone.
+- HAPTIC FEEDBACK: Vibration on successful scan.
+- OFFLINE RESILIENCE: Graceful handling of venue WiFi drops.
+
+================================================================================
+END OF SPECIFICATION
+================================================================================

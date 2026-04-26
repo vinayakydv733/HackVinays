@@ -1,8 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
 import { COLORS } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function ParticipantLayout() {
+  const { userData, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.bg, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color={COLORS.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (!userData || userData.role !== 'participant') {
+    return <Redirect href="/" />;
+  }
+
   return (
     <Tabs
       screenOptions={{

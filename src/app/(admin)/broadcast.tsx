@@ -3,17 +3,17 @@ import { useRouter } from 'expo-router';
 import { addDoc, collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../../components/ui/Button';
@@ -21,7 +21,7 @@ import Input from '../../components/ui/Input';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 import { db } from '../../firebase/config';
 
-interface Announcement {
+interface announcement {
   id: string;
   title: string;
   message: string;
@@ -36,7 +36,7 @@ const TARGETS = [
   { label: 'Volunteers', value: 'volunteers' },
 ];
 
-export default function AdminBroadcast() {
+export default function Adminannounce() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -48,7 +48,7 @@ export default function AdminBroadcast() {
   const [isSending, setIsSending] = useState(false);
 
   // History State
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [announcements, setannouncements] = useState<announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch past announcements
@@ -58,8 +58,8 @@ export default function AdminBroadcast() {
       const fetched = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as Announcement[];
-      setAnnouncements(fetched);
+      })) as announcement[];
+      setannouncements(fetched);
       setLoading(false);
     });
 
@@ -88,9 +88,9 @@ export default function AdminBroadcast() {
       setMessage('');
       setTarget('all');
       setIsUrgent(false);
-      Alert.alert('Success', 'Broadcast sent successfully!');
+      Alert.alert('Success', 'announce sent successfully!');
     } catch (error) {
-      Alert.alert('Error', 'Failed to send broadcast.');
+      Alert.alert('Error', 'Failed to send announce.');
     } finally {
       setIsSending(false);
     }
@@ -111,7 +111,7 @@ export default function AdminBroadcast() {
         <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
           <Ionicons name="chevron-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Broadcast Center</Text>
+        <Text style={styles.headerTitle}>announce Center</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -122,7 +122,7 @@ export default function AdminBroadcast() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.composeCard}>
-            <Text style={styles.sectionTitle}>New Announcement</Text>
+            <Text style={styles.sectionTitle}>New announcement</Text>
             
             <Input 
               label="Title" 
@@ -136,7 +136,7 @@ export default function AdminBroadcast() {
               style={styles.textArea}
               value={message}
               onChangeText={setMessage}
-              placeholder="Type your broadcast message here..."
+              placeholder="Type your announce message here..."
               placeholderTextColor={COLORS.textSecondary}
               multiline
               numberOfLines={4}
@@ -177,7 +177,7 @@ export default function AdminBroadcast() {
             </View>
 
             <Button 
-              title="SEND BROADCAST" 
+              title="SEND announce" 
               onPress={handleSend} 
               loading={isSending} 
               style={{ marginTop: SPACING.md }} 
@@ -188,7 +188,7 @@ export default function AdminBroadcast() {
           loading ? (
             <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: SPACING.xl }} />
           ) : (
-            <Text style={styles.emptyText}>No broadcasts sent yet.</Text>
+            <Text style={styles.emptyText}>No announces sent yet.</Text>
           )
         }
         renderItem={({ item }) => (

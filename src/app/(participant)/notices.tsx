@@ -3,18 +3,18 @@ import { useRouter } from 'expo-router';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 import { db } from '../../firebase/config';
 
-interface Announcement {
+interface announcement {
   id: string;
   title: string;
   message: string;
@@ -23,10 +23,10 @@ interface Announcement {
   createdAt: number;
 }
 
-export default function ParticipantAnnouncements() {
+export default function Participantannouncements() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [announcements, setannouncements] = useState<announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,14 +41,14 @@ export default function ParticipantAnnouncements() {
       const fetched = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as Announcement[];
+      })) as announcement[];
       
       // 2. Filter them locally in JavaScript
-      const participantAnnouncements = fetched.filter(
+      const participantannouncements = fetched.filter(
         (announcement) => announcement.target === 'all' || announcement.target === 'participants'
       );
 
-      setAnnouncements(participantAnnouncements);
+      setannouncements(participantannouncements);
       setLoading(false);
     }, (error) => {
       console.error("Error fetching announcements: ", error);
@@ -75,7 +75,7 @@ export default function ParticipantAnnouncements() {
         <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
           <Ionicons name="chevron-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Announcements</Text>
+        <Text style={styles.headerTitle}>announcements</Text>
         <View style={{ width: 40 }} />
       </View>
 

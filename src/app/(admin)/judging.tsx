@@ -235,7 +235,6 @@ export default function JudgingPanel() {
                   onPress={() => saveScores(false)} 
                   loading={isSaving}
                   style={styles.draftBtn}
-                  textStyle={{ color: COLORS.primary }}
                 />
                 <Button 
                   title="LOCK SCORE" 

@@ -59,11 +59,11 @@ export interface Event {
   location?: string;
 }
 
-export interface Announcement {
+export interface announcement {
   id: string;
   title: string;
   body: string;
-  type: 'broadcast' | 'notice';
+  type: 'announce' | 'notice';
   targetUid?: string;
   targetTeamId?: string;
   postedBy: string;

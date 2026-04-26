@@ -37,7 +37,7 @@ export default function Login() {
     if (role === 'admin') {
       router.replace('/(admin)/dashboard');
     } else if (role === 'volunteer') {
-      router.replace('/(volunteer)/home');
+      router.replace('/(volunteer)' as any);
     } else {
       router.replace('/(participant)/home');
     }
@@ -90,10 +90,10 @@ export default function Login() {
             error={errors.email}
           />
           <Input
-            label="Password"
+            label="Password / Volunteer Code"
             value={password}
             onChangeText={setPassword}
-            placeholder="••••••••"
+            placeholder="Password or 6-digit code"
             secureTextEntry
             error={errors.password}
           />
@@ -114,6 +114,7 @@ export default function Login() {
         </View>
 
         <View style={styles.accentLine} />
+
       </ScrollView>
     </KeyboardAvoidingView>
   );

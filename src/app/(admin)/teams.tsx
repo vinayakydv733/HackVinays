@@ -39,6 +39,7 @@ export interface Team {
   projectSubmitted?: boolean;
   checkedIn?: boolean;
   score?: number;
+  membersArrived?: number;
 }
 
 interface TeamMember {
@@ -53,6 +54,7 @@ export default function AdminTeams() {
   // Data States
   const [teams, setTeams] = useState<Team[]>([]);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
+  const [activePassCounts, setActivePassCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -108,6 +110,22 @@ export default function AdminTeams() {
     return () => unsubscribeUsers();
   }, []);
 
+  // 3. Fetch active passes to calculate how many members are currently away
+  useEffect(() => {
+    const q = query(collection(db, 'passes'), where('status', '==', 'Active'));
+    const unsubscribePasses = onSnapshot(q, (snapshot) => {
+      const counts: Record<string, number> = {};
+      snapshot.docs.forEach((doc) => {
+        const tId = doc.data().teamId;
+        if (tId) {
+          counts[tId] = (counts[tId] || 0) + 1;
+        }
+      });
+      setActivePassCounts(counts);
+    });
+    return () => unsubscribePasses();
+  }, []);
+
   // 3. Fetch specific Members when a team is selected (for the modal)
   useEffect(() => {
     if (!selectedTeam?.name) return;
@@ -141,6 +159,7 @@ export default function AdminTeams() {
         checkedIn: false,
         projectSubmitted: false,
         score: 0,
+        membersArrived: 0,
         mentorName: '',
         createdAt: Date.now(),
       });
@@ -178,6 +197,16 @@ export default function AdminTeams() {
       await updateDoc(doc(db, 'teams', selectedTeam.id), { score: newScore });
     } catch (error) {
       Alert.alert('Error', 'Failed to update score');
+    }
+  };
+
+  const updateMembersArrived = async (increment: number) => {
+    if (!selectedTeam) return;
+    const newCount = Math.max(0, (selectedTeam.membersArrived || 0) + increment);
+    try {
+      await updateDoc(doc(db, 'teams', selectedTeam.id), { membersArrived: newCount });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update member count');
     }
   };
 
@@ -265,7 +294,7 @@ export default function AdminTeams() {
                   <View style={styles.memberCountRow}>
                     <Ionicons name="people" size={14} color={COLORS.textSecondary} />
                     <Text style={styles.memberCountText}>
-                      {memberCounts[item.name] || 0} Members
+                      {Math.max(0, (item.membersArrived || 0) - (activePassCounts[item.id] || 0))} / {memberCounts[item.name] || 0} Present
                     </Text>
                   </View>
                 </View>
@@ -309,7 +338,6 @@ export default function AdminTeams() {
               value={newTeamName}
               onChangeText={setNewTeamName}
               placeholder="e.g. Cyber Ninjas"
-              autoFocus
             />
             <Button title="ADD TEAM" onPress={handleAddTeam} loading={isAdding} style={{ marginTop: SPACING.md }} />
           </View>
@@ -374,6 +402,19 @@ export default function AdminTeams() {
                         </TouchableOpacity>
                       </View>
                     </View>
+                    <View style={styles.divider} />
+                    <View style={styles.controlRow}>
+                      <Text style={styles.controlLabel}>Members Arrived</Text>
+                      <View style={styles.scoreControls}>
+                        <TouchableOpacity style={styles.scoreBtn} onPress={() => updateMembersArrived(-1)}>
+                          <Ionicons name="remove" size={20} color={COLORS.textPrimary} />
+                        </TouchableOpacity>
+                        <Text style={styles.scoreValue}>{selectedTeam.membersArrived || 0}</Text>
+                        <TouchableOpacity style={styles.scoreBtn} onPress={() => updateMembersArrived(1)}>
+                          <Ionicons name="add" size={20} color={COLORS.textPrimary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
 
                   {/* Registered Members List */}
@@ -404,7 +445,6 @@ export default function AdminTeams() {
                     title="DELETE TEAM" 
                     onPress={handleDeleteTeam}
                     style={styles.deleteBtn}
-                    textStyle={{ color: '#E74C3C' }}
                   />
                 </ScrollView>
               </>

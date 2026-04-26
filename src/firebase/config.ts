@@ -1,14 +1,13 @@
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import {
-  getAuth,
-  getReactNativePersistence,
-  initializeAuth
-} from 'firebase/auth';
+import { getAuth, initializeAuth } from 'firebase/auth';
+// @ts-ignore
+import { getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { Platform } from 'react-native';
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
@@ -20,20 +19,28 @@ const firebaseConfig = {
 // 1. Initialize App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// 2. Bulletproof Auth Initialization
-// We check the internal '_auth' property to see if it's already there.
-// This prevents the "auth/already-initialized" error during hot reloads.
-let auth;
-if (!(app as any)._authCheck) {
-  auth = initializeAuth(app, {
-    persistence: (getReactNativePersistence as any)(ReactNativeAsyncStorage)
-  });
-  (app as any)._authCheck = true; // Set a flag so we don't init again
-} else {
-  auth = getAuth(app);
+// 2. Initialize Auth with AsyncStorage persistence for React Native
+// Use try-catch to handle hot reloads that attempt to reinitialize
+let auth: any;
+try {
+  if (Platform.OS === 'web') {
+    auth = initializeAuth(app);
+  } else {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+    });
+  }
+} catch (e: any) {
+  // If auth is already initialized (e.g., during hot reload), get the existing instance
+  if (e.code === 'auth/already-initialized') {
+    auth = getAuth(app);
+  } else {
+    throw e;
+  }
 }
 
 const db = getFirestore(app);
 const storage = getStorage(app);
 
 export { auth, db, storage };
+

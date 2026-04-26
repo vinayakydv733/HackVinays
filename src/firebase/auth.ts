@@ -13,10 +13,20 @@ export async function registerUser(
   password: string,
   role: Role,
   teamName?: string,
-  mentorName?: string
+  mentorName?: string,
+  teamId?: string
 ) {
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  // Use a secondary app to create the user without logging out the Admin
+  const { getApp, getApps, initializeApp } = await import('firebase/app');
+  const { getAuth, signOut } = await import('firebase/auth');
+  const { firebaseConfig } = await import('./config');
+  
+  const secondaryApp = getApps().find(app => app.name === 'SecondaryApp') || initializeApp(firebaseConfig, 'SecondaryApp');
+  const secondaryAuth = getAuth(secondaryApp);
+  
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
   const uid = cred.user.uid;
+  await signOut(secondaryAuth);
 
   await setDoc(doc(db, 'users', uid), {
     uid,
@@ -25,7 +35,7 @@ export async function registerUser(
     role,
     teamName: teamName || '',
     mentorName: mentorName || '',
-    teamId: '',
+    teamId: teamId || '',
     createdAt: Date.now(),
   });
 
