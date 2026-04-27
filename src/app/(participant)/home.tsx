@@ -5,8 +5,9 @@ import {
   collection,
   doc,
   onSnapshot,
+  or,
   query,
-  where,
+  where
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
@@ -74,11 +75,11 @@ export default function ParticipantHome() {
       (r.type === 'pass_game' || r.type === 'pass_restroom') &&
       (r.status === 'active' || r.status === 'pending')
   );
-  
+
   // Calculate available table seats
   const membersOnPasses = activePasses.length;
   const availableTableSeats = totalMembers - membersOnPasses;
-  
+
   const teamName =
     teamData?.teamName ||
     teamData?.name ||
@@ -115,17 +116,25 @@ export default function ParticipantHome() {
 
   // ── Load unread announcements ──
   useEffect(() => {
-    const q = query(collection(db, 'announcements'));
+    if (!user?.uid) return;
+
+    // Listen to broadcast first, then handle specific targeting client-side if indexes are missing
+    const q = query(
+      collection(db, 'announcements'),
+      where('type', '==', 'broadcast')
+    );
+
     const unsub = onSnapshot(q, (snap) => {
-      const all = snap.docs.map((d) => d.data());
-      const relevant = all.filter(
-        (a: any) =>
-          a.type === 'broadcast' ||
-          a.targetUid === user?.uid ||
-          a.targetTeamId === userData?.teamId
+      const allAnnouncements = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const relevant = allAnnouncements.filter((a: any) => 
+        a.type === 'broadcast' || 
+        a.targetUid === user.uid || 
+        a.targetTeamId === userData?.teamId
       );
       const unread = relevant.filter((a: any) => !a.read).length;
       setUnreadCount(unread);
+    }, (error) => {
+      console.warn("Announcements listener error (check index):", error);
     });
     return unsub;
   }, [user?.uid, userData?.teamId]);
@@ -435,9 +444,9 @@ export default function ParticipantHome() {
         availableTableSeats <= 2 && { borderColor: '#dc2626', backgroundColor: '#7f1d1d40' }
       ]}>
         <View style={styles.tableStatusHeader}>
-          <MaterialCommunityIcons 
-            name="table-chair" 
-            size={28} 
+          <MaterialCommunityIcons
+            name="table-chair"
+            size={28}
             color={availableTableSeats <= 2 ? '#fca5a5' : '#fbbf24'}
           />
           <View style={styles.tableStatusText}>
@@ -451,7 +460,7 @@ export default function ParticipantHome() {
           </View>
         </View>
         <View style={styles.tableStatusBar}>
-          <View 
+          <View
             style={[
               styles.tableStatusBarFill,
               {

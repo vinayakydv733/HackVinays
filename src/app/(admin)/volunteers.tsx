@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
-import { registerUser } from '../../firebase/auth';
+import { registerUserByAdmin } from '../../firebase/auth';
 import { db } from '../../firebase/config';
 
 interface Volunteer {
@@ -74,6 +74,7 @@ export default function AdminVolunteers() {
   const [newEmail, setNewEmail] = useState('');
   const [selectedZone, setSelectedZone] = useState(ZONES[0].value);
   const [isAdding, setIsAdding] = useState(false);
+  const [editingVolunteer, setEditingVolunteer] = useState<Volunteer | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -103,39 +104,60 @@ export default function AdminVolunteers() {
     return Object.keys(e).length === 0;
   };
 
-  const handleAddVolunteer = async () => {
+  const handleSaveVolunteer = async () => {
     if (!validate()) return;
     setIsAdding(true);
 
-    const code = generateLoginCode();
-    // Password = loginCode so volunteer uses code to login
-    const password = code;
-
     try {
-      // 1. Create Firebase Auth account
-      const { user } = await registerUser(
-        newName.trim(),
-        newEmail.trim().toLowerCase(),
-        password,
-        'volunteer'
-      );
+      if (editingVolunteer) {
+        // Update existing volunteer
+        await updateDoc(doc(db, 'volunteers', editingVolunteer.id), {
+          name: newName.trim(),
+          email: newEmail.trim().toLowerCase(),
+          zone: selectedZone,
+        });
 
-      // 2. Save to volunteers collection with the code
-      const { addDoc } = await import('firebase/firestore');
-      await addDoc(collection(db, 'volunteers'), {
-        uid: user.uid,
-        name: newName.trim(),
-        email: newEmail.trim().toLowerCase(),
-        zone: selectedZone,
-        loginCode: code,
-        createdAt: Date.now(),
-      });
+        // Also update users collection if they have a UID
+        if (editingVolunteer.uid) {
+          await updateDoc(doc(db, 'users', editingVolunteer.uid), {
+            name: newName.trim(),
+            email: newEmail.trim().toLowerCase(),
+          });
+        }
 
-      // 3. Show code to admin
-      setNewCode(code);
-      setNewVolunteerName(newName.trim());
-      setShowAddModal(false);
-      setShowCodeModal(true);
+        setShowAddModal(false);
+        setEditingVolunteer(null);
+        Alert.alert('Success', 'Volunteer updated successfully');
+      } else {
+        // Create new volunteer
+        const code = generateLoginCode();
+        const password = code;
+
+        // 1. Create Firebase Auth account (Admin stays logged in)
+        const { user } = await registerUserByAdmin(
+          newName.trim(),
+          newEmail.trim().toLowerCase(),
+          password,
+          'volunteer'
+        );
+
+        // 2. Save to volunteers collection with the code
+        const { addDoc } = await import('firebase/firestore');
+        await addDoc(collection(db, 'volunteers'), {
+          uid: user.uid,
+          name: newName.trim(),
+          email: newEmail.trim().toLowerCase(),
+          zone: selectedZone,
+          loginCode: code,
+          createdAt: Date.now(),
+        });
+
+        // 3. Show code to admin
+        setNewCode(code);
+        setNewVolunteerName(newName.trim());
+        setShowAddModal(false);
+        setShowCodeModal(true);
+      }
 
       // Reset form
       setNewName('');
@@ -146,11 +168,28 @@ export default function AdminVolunteers() {
       const msg =
         err.code === 'auth/email-already-in-use'
           ? 'This email is already registered'
-          : err.message || 'Failed to create volunteer account';
+          : err.message || 'Failed to save volunteer account';
       Alert.alert('Error', msg);
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const openEditModal = (volunteer: Volunteer) => {
+    setEditingVolunteer(volunteer);
+    setNewName(volunteer.name);
+    setNewEmail(volunteer.email);
+    setSelectedZone(volunteer.zone);
+    setShowAddModal(true);
+  };
+
+  const openAddModal = () => {
+    setEditingVolunteer(null);
+    setNewName('');
+    setNewEmail('');
+    setSelectedZone(ZONES[0].value);
+    setErrors({});
+    setShowAddModal(true);
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -215,7 +254,7 @@ export default function AdminVolunteers() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => setShowAddModal(true)}
+          onPress={openAddModal}
           style={styles.addBtn}
         >
           <Ionicons name="person-add-outline" size={18} color={COLORS.white} />
@@ -321,17 +360,29 @@ export default function AdminVolunteers() {
                   <Text style={styles.codeHint}>= password</Text>
                 </View>
 
-                {/* Right: Delete */}
-                <TouchableOpacity
-                  onPress={() => handleDelete(item.id, item.name)}
-                  style={styles.deleteBtn}
-                >
-                  <Ionicons
-                    name="trash-outline"
-                    size={20}
-                    color={COLORS.red}
-                  />
-                </TouchableOpacity>
+                {/* Right Actions */}
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    onPress={() => openEditModal(item)}
+                    style={styles.editBtn}
+                  >
+                    <Ionicons
+                      name="pencil-outline"
+                      size={20}
+                      color={COLORS.primary}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleDelete(item.id, item.name)}
+                    style={styles.deleteBtn}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={20}
+                      color={COLORS.red}
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
             );
           }}
@@ -366,7 +417,9 @@ export default function AdminVolunteers() {
           <View style={styles.modalContent}>
             {/* Modal Header */}
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Add Volunteer</Text>
+              <Text style={styles.modalTitle}>
+                {editingVolunteer ? 'Edit Volunteer' : 'Add Volunteer'}
+              </Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
                 <Ionicons
                   name="close"
@@ -445,8 +498,8 @@ export default function AdminVolunteers() {
               </View>
 
               <Button
-                title="CREATE VOLUNTEER ACCOUNT"
-                onPress={handleAddVolunteer}
+                title={editingVolunteer ? "UPDATE VOLUNTEER" : "CREATE VOLUNTEER ACCOUNT"}
+                onPress={handleSaveVolunteer}
                 loading={isAdding}
                 style={{ marginTop: SPACING.sm }}
               />
@@ -659,6 +712,14 @@ const styles = StyleSheet.create({
     color: COLORS.textDim,
     fontSize: 8,
     marginTop: 2,
+  },
+  cardActions: {
+    gap: SPACING.sm,
+  },
+  editBtn: {
+    padding: SPACING.xs,
+    backgroundColor: COLORS.primary + '22',
+    borderRadius: RADIUS.sm,
   },
   deleteBtn: {
     padding: SPACING.xs,

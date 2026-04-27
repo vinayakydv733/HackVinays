@@ -1,64 +1,154 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper Functions
+
+    // ── Helper Functions ──────────────────────────────────────────
+
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
-    
+
     function isAdmin() {
-      return isAuthenticated() && getUserData().role == 'admin';
-    }
-    
-    function isParticipant() {
-      return isAuthenticated() && getUserData().role == 'participant';
+      return isAuthenticated() 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserData().role == 'admin';
     }
 
-    // Admins can do everything
+    function isVolunteer() {
+      return isAuthenticated() 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserData().role == 'volunteer';
+    }
+
+    function isParticipant() {
+      return isAuthenticated() 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserData().role == 'participant';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function belongsToTeam(teamId) {
+      return isAuthenticated() 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserData().teamId == teamId;
+    }
+
+    // ── Admins: Full Access ───────────────────────────────────────
     match /{document=**} {
       allow read, write: if isAdmin();
     }
-    
-    // Users Collection
+
     match /users/{userId} {
-      // Users can read their own profile
-      allow read: if isAuthenticated() && request.auth.uid == userId;
-      // Allow new users to create their own profile, but force role to 'participant'
-      allow create: if isAuthenticated() && request.auth.uid == userId && request.resource.data.role == 'participant';
-      // Users can update their own profile, but cannot change their role
-      allow update: if isAuthenticated() && request.auth.uid == userId && request.resource.data.role == resource.data.role;
+      // ✅ KEY FIX: Allow create if auth UID matches OR if user is admin
+      // This is called during registration or when admin adds a volunteer
+      allow create: if (isAuthenticated() && request.auth.uid == userId) || isAdmin();
+
+      // Read own profile
+      allow read: if isOwner(userId) || isVolunteer();
+
+      // Update own profile but cannot change role or uid
+      allow update: if isOwner(userId)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.uid == resource.data.uid;
     }
-    
-    // Teams Collection
+
+    // ── Teams Collection ──────────────────────────────────────────
     match /teams/{teamId} {
-      // Any authenticated user can read teams (e.g. for Leaderboard)
-      allow read: if isAuthenticated();
-      // Participants can update their own team's data (e.g. submissions)
-      allow update: if isParticipant() && teamId == getUserData().teamId;
+      // Anyone can read teams (needed for registration dropdown)
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isVolunteer();
+      allow delete: if isAdmin();
     }
-    
-    // Advice Collection
+
+    // ── Announcements ─────────────────────────────────────────────
+    match /announcements/{annId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isVolunteer();
+      allow delete: if isAdmin();
+    }
+
+    // ── Events / Schedule ─────────────────────────────────────────
+    match /events/{eventId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Projects ──────────────────────────────────────────────────
+    match /projects/{projectId} {
+      allow read: if isAuthenticated();
+      allow create: if isParticipant();
+      allow update: if isParticipant() && belongsToTeam(resource.data.teamId);
+      allow delete: if isAdmin();
+    }
+
+    // ── Scores ────────────────────────────────────────────────────
+    match /scores/{scoreId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isVolunteer();
+      allow delete: if isAdmin();
+    }
+
+    // ── Help Requests (Passes, SOS, Tech) ─────────────────────────
+    match /help_requests/{requestId} {
+      // Participant reads their own team's requests
+      allow read: if isAuthenticated();
+      // Anyone authenticated can create (SOS, tech, passes)
+      allow create: if isAuthenticated();
+      // Volunteers can update (approve/reject passes)
+      allow update: if isVolunteer() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Meals ─────────────────────────────────────────────────────
+    match /meals/{mealId} {
+      allow read: if isAuthenticated();
+      allow create: if isVolunteer() || isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Volunteer Tasks ───────────────────────────────────────────
+    match /volunteer_tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      // Volunteers can update status (mark complete)
+      allow update: if isVolunteer() || isAdmin();
+    }
+
+    // ── Advice (Mentor Feedback) ──────────────────────────────────
     match /advice/{adviceId} {
-      // Participants can read advice assigned to their team
-      allow read: if isParticipant() && resource.data.teamId == getUserData().teamId;
-      // Participants can update their advice (e.g. mark as implemented)
-      allow update: if isParticipant() && resource.data.teamId == getUserData().teamId;
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      // Participants can only toggle 'implemented' field
+      allow update: if isParticipant() 
+        && request.resource.data.diff(resource.data)
+           .affectedKeys().hasOnly(['implemented']);
     }
-    
-    // Mentors Collection
+
+    // ── Volunteers Collection ─────────────────────────────────────
+    match /volunteers/{volId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Settings (Hackathon Timer etc.) ───────────────────────────
+    match /settings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Mentors ───────────────────────────────────────────────────
     match /mentors/{mentorId} {
-      // Anyone can see mentors list
       allow read: if isAuthenticated();
-    }
-    
-    // Resources Collection
-    match /resources/{resourceId} {
-      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
   }
 }

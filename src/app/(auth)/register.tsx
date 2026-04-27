@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,10 +18,10 @@ import {
   View,
 } from 'react-native';
 
-// IMPORTANT: Ensure these paths point to your actual component and config files
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 import { registerUser } from '../../firebase/auth';
 import { db } from '../../firebase/config';
 
@@ -35,42 +35,43 @@ const PARTNER_LOGOS = [
 
 export default function Register() {
   const router = useRouter();
+  const { refreshUserData } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [teamName, setTeamName] = useState('');
   const [teamId, setTeamId] = useState('');
-  
+
   // States for fetching and filtering teams
-  const [teams, setTeams] = useState<{id: string, name: string}[]>([]);
+  const [teams, setTeams] = useState<{ id: string, name: string }[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<'creating' | 'syncing' | 'finalizing' | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Fetch teams from Firebase in real-time
   useEffect(() => {
-    const teamsRef = collection(db, 'teams');
-    // Order alphabetically so the dropdown is organized
-    const q = query(teamsRef, orderBy('name', 'asc'));
+    const fetchTeams = async () => {
+      try {
+        const teamsRef = collection(db, 'teams');
+        const q = query(teamsRef, orderBy('name', 'asc'));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      // Extract the team objects
-      const fetchedTeams = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
-      
-      setTeams(fetchedTeams);
-      setLoadingTeams(false);
-    }, (error) => {
-      console.error("Error fetching teams for register dropdown: ", error);
-      Alert.alert('Error', 'Failed to load teams. Please check your connection.');
-      setLoadingTeams(false);
-    });
+        const snapshot = await getDocs(q);
+        const fetchedTeams = snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
 
-    // Cleanup the listener when the user leaves the register page
-    return () => unsubscribe();
+        setTeams(fetchedTeams);
+      } catch (error) {
+        console.error("Error fetching teams: ", error);
+      } finally {
+        setLoadingTeams(false);
+      }
+    };
+
+    fetchTeams();
   }, []);
 
   const validate = () => {
@@ -89,9 +90,12 @@ export default function Register() {
   const handleRegister = async () => {
     if (!validate()) return;
     setLoading(true);
+    setLoadingStage('creating');
+    
     try {
-      // Hardcoded 'participant' and empty mentor string
-      const { role: assignedRole } = await registerUser(
+      // Step 1: Create Firebase Auth user AND write Firestore doc.
+      // This is the sequential logic we implemented in auth.ts
+      await registerUser(
         name.trim(),
         email.trim(),
         password,
@@ -100,14 +104,27 @@ export default function Register() {
         '',
         teamId
       );
+
+      setLoadingStage('syncing');
+
+      // Step 2: Force the AuthContext to re-read the now-existing Firestore doc.
+      // This guarantees the local context is ready before we let the user into the app.
+      await refreshUserData();
+
+      setLoadingStage('finalizing');
       
-      router.replace('/(participant)/home');
-      
+      // Short delay for UX transition
+      setTimeout(() => {
+        router.replace('/(participant)/home');
+      }, 500);
+
     } catch (err: any) {
+      console.error('Registration error:', err);
+      setLoadingStage(null);
       const msg =
         err.code === 'auth/email-already-in-use'
-          ? 'This email is already registered'
-          : 'Registration failed. Please try again.';
+          ? 'This email is already registered.'
+          : err.message || 'Registration failed. Please try again.';
       Alert.alert('Registration Failed', msg);
     } finally {
       setLoading(false);
@@ -115,7 +132,7 @@ export default function Register() {
   };
 
   // Filter teams based on search query
-  const filteredTeams = teams.filter(team => 
+  const filteredTeams = teams.filter(team =>
     team.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -178,7 +195,7 @@ export default function Register() {
           {/* Custom Team Dropdown Selector */}
           <View style={styles.dropdownContainer}>
             <Text style={styles.dropdownLabel}>Select Team</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.dropdownButton, errors.teamName && styles.dropdownError]}
               onPress={() => setShowTeamModal(true)}
               disabled={loadingTeams}
@@ -208,12 +225,12 @@ export default function Register() {
               <Text style={styles.dividerText}>Supported by</Text>
               <View style={styles.dividerLine} />
             </View>
-            
+
             <View style={styles.logosRow}>
               {PARTNER_LOGOS.map((logo) => (
                 <View key={logo.id} style={styles.logoBox}>
-                  <Image 
-                    source={logo.source} 
+                  <Image
+                    source={logo.source}
                     style={styles.logoImage}
                     resizeMode="contain"
                   />
@@ -232,14 +249,34 @@ export default function Register() {
         </View>
 
         <View style={styles.accentLine} />
-      </ScrollView>
+    </ScrollView>
+
+      {/* Sequential Loading Overlay */}
+      <Modal visible={!!loadingStage} transparent animationType="fade">
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>
+              {loadingStage === 'creating' && 'Creating your account...'}
+              {loadingStage === 'syncing' && 'Syncing profile data...'}
+              {loadingStage === 'finalizing' && 'Launching dashboard...'}
+            </Text>
+            <View style={styles.progressBar}>
+               <View style={[
+                 styles.progressFill, 
+                 { width: loadingStage === 'creating' ? '33%' : loadingStage === 'syncing' ? '66%' : '100%' }
+               ]} />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Team Selection Modal */}
       <Modal visible={showTeamModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Select your Team</Text>
-            
+
             {/* Search Bar with Icon */}
             <View style={styles.searchContainer}>
               <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
@@ -263,7 +300,7 @@ export default function Register() {
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.teamOption}
                   onPress={() => {
                     setTeamName(item.name);
@@ -281,8 +318,8 @@ export default function Register() {
                 </Text>
               }
             />
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.closeModalButton}
               onPress={handleCloseModal}
             >
@@ -345,7 +382,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     height: 50,
     justifyContent: 'center',
-    backgroundColor: 'transparent', 
+    backgroundColor: 'transparent',
   },
   dropdownError: {
     borderColor: 'red',
@@ -359,7 +396,7 @@ const styles = StyleSheet.create({
     fontSize: FONTS.size.xs,
     marginTop: 4,
   },
-  
+
   // Logos Styles
   socialContainer: {
     marginTop: SPACING.lg,
@@ -432,16 +469,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF', 
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: RADIUS.lg,
     borderTopRightRadius: RADIUS.lg,
     padding: SPACING.lg,
-    maxHeight: '75%', 
+    maxHeight: '75%',
   },
   modalTitle: {
     fontSize: FONTS.size.lg,
     fontWeight: 'bold',
-    color: '#333333', 
+    color: '#333333',
     marginBottom: SPACING.md,
     textAlign: 'center',
   },
@@ -469,7 +506,7 @@ const styles = StyleSheet.create({
   },
   teamOptionText: {
     fontSize: FONTS.size.md,
-    color: '#333333', 
+    color: '#333333',
   },
   separator: {
     height: 1,
@@ -488,7 +525,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeModalText: {
-    color: '#333333', 
+    color: '#333333',
     fontWeight: 'bold',
+  },
+  // Loading Stages
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingBox: {
+    backgroundColor: COLORS.bgCard,
+    padding: SPACING.xl,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    width: '80%',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  loadingText: {
+    color: COLORS.textPrimary,
+    marginTop: SPACING.md,
+    fontSize: FONTS.size.md,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: COLORS.border,
+    width: '100%',
+    borderRadius: 2,
+    marginTop: SPACING.lg,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
   },
 });

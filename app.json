@@ -9,7 +9,6 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/new_app_icon.png"
-      
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +19,6 @@
       "package": "com.vinayak733.my_app"
     },
     "web": {
-      "output": "static",
       "favicon": "./assets/images/new_app_icon.png"
     },
     "plugins": [
@@ -48,6 +46,12 @@
       "eas": {
         "projectId": "6dc4b8af-263f-4396-8565-ae51c557dcdf"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6dc4b8af-263f-4396-8565-ae51c557dcdf"
     }
   }
 }

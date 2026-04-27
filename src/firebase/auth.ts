@@ -5,7 +5,54 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Role } from '../types';
-import { auth, db } from './config';
+import { auth, db, firebaseConfig } from './config';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+
+/**
+ * Creates a new user without swapping the current auth session.
+ * Used by Admins to create Volunteers/Mentors/etc.
+ */
+export async function registerUserByAdmin(
+  name: string,
+  email: string,
+  password: string,
+  role: Role,
+  teamName?: string,
+  mentorName?: string,
+  teamId?: string
+) {
+  // 1. Initialize a secondary Firebase app instance
+  const tempAppName = `temp-app-${Date.now()}`;
+  const tempApp = initializeApp(firebaseConfig, tempAppName);
+  const tempAuth = getAuth(tempApp);
+
+  try {
+    // 2. Create the user on the secondary auth instance
+    const cred = await createUserWithEmailAndPassword(tempAuth, email, password);
+    const uid = cred.user.uid;
+
+    // 3. Prepare the data
+    const userData = {
+      uid,
+      name,
+      email,
+      role: role || 'participant',
+      teamName: teamName || '',
+      mentorName: mentorName || '',
+      teamId: teamId || '',
+      createdAt: new Date().toISOString(),
+    };
+
+    // 4. Write to Firestore using the PRIMARY db instance (Admin is still logged in here)
+    await setDoc(doc(db, 'users', uid), userData);
+
+    return { user: cred.user, role: userData.role };
+  } finally {
+    // 5. Clean up the secondary app
+    await deleteApp(tempApp);
+  }
+}
 
 export async function registerUser(
   name: string,
@@ -16,30 +63,26 @@ export async function registerUser(
   mentorName?: string,
   teamId?: string
 ) {
-  // Use a secondary app to create the user without logging out the Admin
-  const { getApp, getApps, initializeApp } = await import('firebase/app');
-  const { getAuth, signOut } = await import('firebase/auth');
-  const { firebaseConfig } = await import('./config');
-  
-  const secondaryApp = getApps().find(app => app.name === 'SecondaryApp') || initializeApp(firebaseConfig, 'SecondaryApp');
-  const secondaryAuth = getAuth(secondaryApp);
-  
-  const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+  // 1. Create the user on the PRIMARY auth (Swaps session - used for self-registration)
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
   const uid = cred.user.uid;
-  await signOut(secondaryAuth);
 
-  await setDoc(doc(db, 'users', uid), {
+  // 2. Prepare the data
+  const userData = {
     uid,
     name,
     email,
-    role,
+    role: role || 'participant',
     teamName: teamName || '',
     mentorName: mentorName || '',
     teamId: teamId || '',
-    createdAt: Date.now(),
-  });
+    createdAt: new Date().toISOString(),
+  };
 
-  return { user: cred.user, role };
+  // 3. Write to Firestore (This will now work because the user is still logged in)
+  await setDoc(doc(db, 'users', uid), userData);
+
+  return { user: cred.user, role: userData.role };
 }
 
 export async function loginUser(email: string, password: string) {
@@ -51,4 +94,4 @@ export async function loginUser(email: string, password: string) {
 
 export async function logoutUser() {
   await signOut(auth);
-}
+}
