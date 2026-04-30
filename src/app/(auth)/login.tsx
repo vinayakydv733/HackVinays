@@ -73,8 +73,8 @@ export default function Login() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.tagline}>HACKATHON</Text>
-          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.tagline}>WELCOME TO JIT BORAWAN</Text>
+          <Text style={styles.title}>Hackathon 2025</Text>
           <Text style={styles.subtitle}>Sign in to continue</Text>
         </View>
 

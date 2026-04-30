@@ -5,6 +5,7 @@ import {
     onSnapshot,
     query,
     setDoc,
+    updateDoc,
     where
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -115,6 +116,12 @@ export default function Submit() {
         description: description.trim(),
         submittedAt: Date.now(),
         submittedBy: user?.uid,
+      });
+
+      // Update team document for admin panel
+      await updateDoc(doc(db, 'teams', userData.teamId), {
+        projectSubmitted: true,
+        submissionLink: github.trim(), // Optional: store link on team for quick access
       });
       setExistingId(id);
       setSubmitted(true);

@@ -3,17 +3,22 @@ import {
     collection,
     onSnapshot
 } from 'firebase/firestore';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
+    Platform,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
+    TouchableOpacity,
     View,
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
+import { logoutUser } from '../../firebase/auth';
 import { db } from '../../firebase/config';
 
 interface StatCard {
@@ -25,6 +30,7 @@ interface StatCard {
 
 export default function VolunteerDashboard() {
     const { userData } = useAuth();
+    const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [stats, setStats] = useState({
@@ -43,19 +49,26 @@ export default function VolunteerDashboard() {
     useEffect(() => {
         const unsubs: (() => void)[] = [];
 
+        console.log("VolunteerDashboard: Starting listeners...");
+
         // Teams arrived
         const teamsUnsub = onSnapshot(
             collection(db, 'teams'),
             (snap) => {
+                console.log(`VolunteerDashboard: Received ${snap.docs.length} teams`);
                 const total = snap.docs.length;
                 const arrived = snap.docs.filter(
-                    (d) => d.data().checkInStatus === 'Checked In'
+                    (d) => d.data().checkInStatus === 'Checked In' || d.data().checkedIn === true
                 ).length;
                 setStats((prev) => ({
                     ...prev,
                     teamsArrived: arrived,
                     totalTeams: total,
                 }));
+                setLoading(false);
+            },
+            (err) => {
+                console.error("VolunteerDashboard: Teams listener error:", err);
                 setLoading(false);
             }
         );
@@ -65,6 +78,7 @@ export default function VolunteerDashboard() {
         const mealsUnsub = onSnapshot(
             collection(db, 'meals'),
             (snap) => {
+                console.log(`VolunteerDashboard: Received ${snap.docs.length} meals`);
                 const meals = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
                 const lunch = meals.filter((m: any) => m.mealType === 'lunch').length;
                 const dinner = meals.filter((m: any) => m.mealType === 'dinner').length;
@@ -76,11 +90,13 @@ export default function VolunteerDashboard() {
                     dinnerServed: dinner,
                     snackServed: snack,
                 }));
-                // Recent meals
                 const sorted = [...meals].sort(
                     (a: any, b: any) => b.timestamp - a.timestamp
                 );
                 setRecentMeals(sorted.slice(0, 5));
+            },
+            (err) => {
+                console.error("VolunteerDashboard: Meals listener error:", err);
             }
         );
         unsubs.push(mealsUnsub);
@@ -89,6 +105,7 @@ export default function VolunteerDashboard() {
         const tasksUnsub = onSnapshot(
             collection(db, 'help_requests'),
             (snap) => {
+                console.log(`VolunteerDashboard: Received ${snap.docs.length} help requests`);
                 const tasks = snap.docs.map((d) => d.data());
                 const pending = tasks.filter((t) => t.status === 'pending').length;
                 const completed = tasks.filter(
@@ -99,6 +116,9 @@ export default function VolunteerDashboard() {
                     pendingTasks: pending,
                     completedTasks: completed,
                 }));
+            },
+            (err) => {
+                console.error("VolunteerDashboard: Tasks listener error:", err);
             }
         );
         unsubs.push(tasksUnsub);
@@ -109,6 +129,37 @@ export default function VolunteerDashboard() {
     const onRefresh = () => {
         setRefreshing(true);
         setTimeout(() => setRefreshing(false), 1000);
+    };
+
+    const handleSignOut = () => {
+        const performLogout = async () => {
+            try {
+                await logoutUser();
+                router.replace('/(auth)/login');
+            } catch (error) {
+                console.error("Logout Error:", error);
+                if (Platform.OS === 'web') {
+                    window.alert('Failed to sign out. Please try again.');
+                } else {
+                    Alert.alert('Error', 'Failed to sign out. Try again.');
+                }
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm('Are you sure you want to sign out?')) {
+                performLogout();
+            }
+        } else {
+            Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Sign Out',
+                    style: 'destructive',
+                    onPress: performLogout,
+                },
+            ]);
+        }
     };
 
     const statCards: StatCard[] = [
@@ -161,14 +212,26 @@ export default function VolunteerDashboard() {
             {/* Header */}
             <View style={styles.header}>
                 <View>
+                    <Text style={styles.collegeName}>JIT BORAWAN</Text>
                     <Text style={styles.tagline}>VOLUNTEER PANEL</Text>
                     <Text style={styles.greeting}>
                         Hey, {userData?.name?.split(' ')[0] ?? 'Volunteer'} 👋
                     </Text>
                 </View>
-                <View style={styles.roleBadge}>
-                    <Ionicons name="shield-checkmark" size={14} color={COLORS.purple} />
-                    <Text style={styles.roleText}>VOLUNTEER</Text>
+                <View style={styles.roleBadgeContainer}>
+                    <View style={styles.roleBadge}>
+                        <Ionicons name="shield-checkmark" size={14} color={COLORS.purple} />
+                        <Text style={styles.roleText}>VOLUNTEER</Text>
+                    </View>
+                    <TouchableOpacity 
+                        onPress={() => router.push('/(volunteer)/notices')} 
+                        style={styles.headerIconBtn}
+                    >
+                        <Ionicons name="notifications-outline" size={22} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleSignOut} style={styles.signOutBtn}>
+                        <Ionicons name="log-out-outline" size={20} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -340,6 +403,13 @@ const styles = StyleSheet.create({
         marginBottom: SPACING.lg,
         paddingTop: SPACING.lg,
     },
+    collegeName: {
+        color: COLORS.purple,
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 2,
+        marginBottom: 2,
+    },
     tagline: {
         color: COLORS.purple,
         fontSize: FONTS.size.xs,
@@ -352,6 +422,11 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         marginTop: 2,
     },
+    roleBadgeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     roleBadge: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -362,6 +437,20 @@ const styles = StyleSheet.create({
         borderRadius: RADIUS.sm,
         borderWidth: 1,
         borderColor: COLORS.purple + '44',
+    },
+    signOutBtn: {
+        padding: 6,
+        backgroundColor: COLORS.bgCard,
+        borderRadius: RADIUS.sm,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    headerIconBtn: {
+        padding: 6,
+        backgroundColor: COLORS.bgCard,
+        borderRadius: RADIUS.sm,
+        borderWidth: 1,
+        borderColor: COLORS.border,
     },
     roleText: {
         color: COLORS.purple,

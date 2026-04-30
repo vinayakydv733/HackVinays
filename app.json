@@ -12,11 +12,12 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#000000",
+        "backgroundColor": "#0a0a1a",
         "foregroundImage": "./assets/images/new_app_icon.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.vinayak733.my_app"
+      "package": "com.codenexusjitb.my_app",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/images/new_app_icon.png"
@@ -26,32 +27,36 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "android": {
-            "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
-          }
+          "backgroundColor": "#0a0a1a",
+          "image": "./assets/images/new_app_icon.png",
+          "imageWidth": 150
         }
       ],
       "expo-image",
-      "expo-build-properties",
-      "expo-sharing"
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0",
+            "kotlinVersion": "2.1.20"
+          }
+        }
+      ],
+      "expo-sharing",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "6dc4b8af-263f-4396-8565-ae51c557dcdf"
+        "projectId": "f68fe6ee-71f2-444e-b98b-f53ea1726d9c"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/6dc4b8af-263f-4396-8565-ae51c557dcdf"
-    }
+    "owner": "codenexus.jitb"
   }
 }

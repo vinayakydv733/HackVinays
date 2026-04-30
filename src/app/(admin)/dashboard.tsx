@@ -4,6 +4,7 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -67,8 +68,26 @@ export default function AdminDashboard() {
   }, []);
 
   const handleLogout = async () => {
-    await logoutUser();
-    router.replace('/(auth)/login'); 
+    const performLogout = async () => {
+      try {
+        await logoutUser();
+        if (Platform.OS === 'web') {
+          window.location.href = '/login';
+        } else {
+          router.replace('/(auth)/login');
+        }
+      } catch (error) {
+        console.error("Logout Error:", error);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to sign out?')) {
+        performLogout();
+      }
+    } else {
+      performLogout();
+    }
   };
 
   const adminModules = [
@@ -88,6 +107,7 @@ export default function AdminDashboard() {
       {/* Header */}
       <View style={styles.header}>
         <View>
+          <Text style={styles.collegeName}>JIT BORAWAN</Text>
           <Text style={styles.greeting}>Command Center</Text>
           <Text style={styles.subtitle}>Admin Dashboard</Text>
         </View>
@@ -160,6 +180,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgCard,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+  },
+  collegeName: {
+    color: COLORS.primary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginBottom: 2,
   },
   greeting: {
     fontSize: FONTS.size.xl,

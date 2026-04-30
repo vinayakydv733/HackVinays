@@ -103,11 +103,28 @@ export default function AdminMentors() {
 
   const handleAssignTeam = async (teamId: string, mentorName: string) => {
     try {
+      const selectedTeam = teams.find(t => t.id === teamId);
+      const teamName = selectedTeam?.name || "Team";
+
+      // 1. Update the team document
       await updateDoc(doc(db, 'teams', teamId), { mentorName });
-      Alert.alert('Success', `Assigned to ${mentorName}`);
+
+      // 2. Create an automatic broadcast announcement
+      await addDoc(collection(db, 'announcements'), {
+        title: 'Mentor Assigned',
+        message: `${mentorName} has been assigned as your mentor!`,
+        target: teamId,
+        isUrgent: true,
+        createdAt: Date.now(),
+        author: mentorName,
+        type: 'mentor_assignment'
+      });
+
+      Alert.alert('Success', `Assigned ${mentorName} to ${teamName} and broadcasted.`);
       setAssigningMentor(null);
     } catch (error) {
-      Alert.alert('Error', 'Failed to assign team.');
+      console.error("Error assigning mentor:", error);
+      Alert.alert('Error', 'Failed to assign team or send broadcast.');
     }
   };
 
@@ -133,6 +150,18 @@ export default function AdminMentors() {
       setAdviceMessage('');
       setAdviceTeamName('');
       setAdvisingMentor(null);
+
+      // Create a targeted notification for the team
+      await addDoc(collection(db, 'announcements'), {
+        title: 'New Mentor Advice',
+        message: `${advisingMentor?.name} has posted new advice for your team. Check the Advice tab!`,
+        target: selectedTeam?.id,
+        isUrgent: false,
+        createdAt: Date.now(),
+        author: advisingMentor?.name,
+        type: 'mentor_advice'
+      });
+
       Alert.alert('Sent!', 'Advice sent to the team.');
     } catch (error) {
       Alert.alert('Error', 'Failed to send advice.');

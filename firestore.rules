@@ -21,13 +21,13 @@ service cloud.firestore {
     function isVolunteer() {
       return isAuthenticated() 
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && getUserData().role == 'volunteer';
+        && (getUserData().role == 'volunteer' || getUserData().role == 'volunteers');
     }
 
     function isParticipant() {
       return isAuthenticated() 
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && getUserData().role == 'participant';
+        && (getUserData().role == 'participant' || getUserData().role == 'participants');
     }
 
     function isOwner(userId) {
@@ -51,7 +51,8 @@ service cloud.firestore {
       allow create: if (isAuthenticated() && request.auth.uid == userId) || isAdmin();
 
       // Read own profile
-      allow read: if isOwner(userId) || isVolunteer();
+      // Read profile if owner, volunteer, or same team member
+      allow read: if isOwner(userId) || isVolunteer() || (isAuthenticated() && getUserData().teamId == resource.data.teamId);
 
       // Update own profile but cannot change role or uid
       allow update: if isOwner(userId)

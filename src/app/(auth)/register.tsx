@@ -27,10 +27,10 @@ import { db } from '../../firebase/config';
 
 // Replace these URIs with your actual image paths, e.g., source: require('../../assets/college.png')
 const PARTNER_LOGOS = [
-  { id: 'college', source: { uri: 'https://via.placeholder.com/100?text=College' } },
-  { id: 'club', source: { uri: 'https://via.placeholder.com/100?text=Club' } },
-  { id: 'microsoft', source: { uri: 'https://via.placeholder.com/100?text=MSFT' } },
-  { id: 'sponsor', source: { uri: 'https://via.placeholder.com/100?text=Sponsor' } },
+  { id: 'college', source: { uri: 'https://res.cloudinary.com/dmh9mcaav/image/upload/v1777395618/jit_logo_z9aiv3.jpg' } },
+  { id: 'club', source: { uri: 'https://res.cloudinary.com/dmh9mcaav/image/upload/v1777396491/Screenshot_2026-04-28_224414_jmfuzi.png' } },
+  { id: 'microsoft', source: { uri: 'https://res.cloudinary.com/dmh9mcaav/image/upload/v1777396438/microsoft_logo_ycfsgw.webp' } },
+  { id: 'sponsor', source: { uri: 'https://res.cloudinary.com/dmh9mcaav/image/upload/v1777395618/shekunj_logo_ljxksd.jpg' } },
 ];
 
 export default function Register() {
@@ -91,7 +91,7 @@ export default function Register() {
     if (!validate()) return;
     setLoading(true);
     setLoadingStage('creating');
-    
+
     try {
       // Step 1: Create Firebase Auth user AND write Firestore doc.
       // This is the sequential logic we implemented in auth.ts
@@ -112,7 +112,7 @@ export default function Register() {
       await refreshUserData();
 
       setLoadingStage('finalizing');
-      
+
       // Short delay for UX transition
       setTimeout(() => {
         router.replace('/(participant)/home');
@@ -249,7 +249,7 @@ export default function Register() {
         </View>
 
         <View style={styles.accentLine} />
-    </ScrollView>
+      </ScrollView>
 
       {/* Sequential Loading Overlay */}
       <Modal visible={!!loadingStage} transparent animationType="fade">
@@ -262,10 +262,10 @@ export default function Register() {
               {loadingStage === 'finalizing' && 'Launching dashboard...'}
             </Text>
             <View style={styles.progressBar}>
-               <View style={[
-                 styles.progressFill, 
-                 { width: loadingStage === 'creating' ? '33%' : loadingStage === 'syncing' ? '66%' : '100%' }
-               ]} />
+              <View style={[
+                styles.progressFill,
+                { width: loadingStage === 'creating' ? '33%' : loadingStage === 'syncing' ? '66%' : '100%' }
+              ]} />
             </View>
           </View>
         </View>

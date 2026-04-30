@@ -1,31 +1,31 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    onSnapshot,
-    orderBy,
-    query,
-    updateDoc,
-    where
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  updateDoc,
+  where
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -50,7 +50,7 @@ interface TeamMember {
 
 export default function AdminTeams() {
   const router = useRouter();
-  
+
   // Data States
   const [teams, setTeams] = useState<Team[]>([]);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
@@ -96,14 +96,14 @@ export default function AdminTeams() {
     const usersRef = collection(db, 'users');
     const unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
       const counts: Record<string, number> = {};
-      
+
       snapshot.docs.forEach((doc) => {
         const teamName = doc.data().teamName;
         if (teamName) {
           counts[teamName] = (counts[teamName] || 0) + 1;
         }
       });
-      
+
       setMemberCounts(counts);
     });
 
@@ -217,8 +217,8 @@ export default function AdminTeams() {
       `Delete ${selectedTeam.name}? This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
+        {
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -283,7 +283,7 @@ export default function AdminTeams() {
             </View>
           }
           renderItem={({ item }) => (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.teamCard}
               onPress={() => setSelectedTeamId(item.id)} // Open details modal
             >
@@ -305,7 +305,7 @@ export default function AdminTeams() {
                   <Text style={styles.scoreText}>{item.score || 0}</Text>
                 </View>
               </View>
-              
+
               <View style={styles.statusRow}>
                 <View style={[styles.statusBadge, item.checkedIn ? styles.badgeSuccess : styles.badgeWarning]}>
                   <Text style={[styles.statusText, { color: item.checkedIn ? "#2ECC71" : "#F39C12" }]}>
@@ -345,16 +345,16 @@ export default function AdminTeams() {
       </Modal>
 
       {/* --- 2. Team Details & Members Modal (Bottom Sheet Style) --- */}
-      <Modal 
-        visible={selectedTeamId !== null} 
-        transparent 
+      <Modal
+        visible={selectedTeamId !== null}
+        transparent
         animationType="slide"
         onRequestClose={() => setSelectedTeamId(null)}
       >
         <View style={styles.bottomSheetOverlay}>
           {/* Tapping outside closes the modal */}
           <TouchableOpacity style={styles.dismissArea} onPress={() => setSelectedTeamId(null)} />
-          
+
           <View style={styles.bottomSheetContent}>
             {selectedTeam && (
               <>
@@ -368,7 +368,7 @@ export default function AdminTeams() {
 
                 {/* We use ScrollView inside the fixed-height modal safely */}
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: SPACING.xl }}>
-                  
+
                   {/* Admin Controls */}
                   <Text style={styles.sectionTitle}>Admin Controls</Text>
                   <View style={styles.controlsCard}>
@@ -441,8 +441,8 @@ export default function AdminTeams() {
                     ))
                   )}
 
-                  <Button 
-                    title="DELETE TEAM" 
+                  <Button
+                    title="DELETE TEAM"
                     onPress={handleDeleteTeam}
                     style={styles.deleteBtn}
                   />
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
   searchIcon: { marginRight: SPACING.sm },
   searchInput: { flex: 1, color: COLORS.textPrimary, fontSize: FONTS.size.md, height: '100%' },
   listContent: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xl, gap: SPACING.md },
-  
+
   // --- Team Card Styles ---
   teamCard: {
     backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.lg,
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   teamName: { fontSize: FONTS.size.lg, fontWeight: 'bold', color: COLORS.textPrimary },
   memberCountRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 },
   memberCountText: { fontSize: FONTS.size.xs, color: COLORS.textSecondary, fontWeight: '500' },
-  
+
   scoreBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1C40F1A', paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.sm, gap: 4 },
   scoreText: { fontSize: FONTS.size.sm, fontWeight: 'bold', color: '#F1C40F' },
   statusRow: { flexDirection: 'row', gap: SPACING.sm },
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
   addModalContent: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border },
   modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
   modalTitle: { fontSize: FONTS.size.lg, fontWeight: 'bold', color: COLORS.textPrimary },
-  
+
   // --- Bottom Sheet Styles (Details) ---
   bottomSheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   dismissArea: { flex: 1 },
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: RADIUS.xl,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.sm,
-    maxHeight: '85%', 
+    maxHeight: '85%',
   },
   modalDragHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: SPACING.md },
   detailsTeamName: { fontSize: FONTS.size.xl, fontWeight: '800', color: COLORS.textPrimary },
@@ -530,5 +530,5 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: FONTS.size.md, fontWeight: 'bold', color: COLORS.primary },
   memberName: { fontSize: FONTS.size.md, fontWeight: '600', color: COLORS.textPrimary },
   memberEmail: { fontSize: FONTS.size.sm, color: COLORS.textSecondary },
-  deleteBtn: { marginTop: SPACING.xl, backgroundColor: 'transparent', borderWidth: 1, borderColor: '#E74C3C' },
+  deleteBtn: { marginTop: SPACING.xl, backgroundColor: '#E74C3C', borderWidth: 1, borderColor: '#E74C3C' },
 });

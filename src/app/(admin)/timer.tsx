@@ -1,3 +1,4 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
@@ -5,6 +6,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,79 +20,96 @@ import { db } from '../../firebase/config';
 export default function AdminTimerControl() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [endTime, setEndTime] = useState<string | null>(null);
-  const [customDate, setCustomDate] = useState('');
+  
+  // Timer States
+  const [startTime, setStartTime] = useState<Date>(new Date());
+  const [endTime, setEndTime] = useState<Date>(new Date(Date.now() + 24 * 3600000));
   const [timeLeft, setTimeLeft] = useState('00:00:00');
+  const [timerStatus, setTimerStatus] = useState<'pending' | 'active' | 'ended'>('pending');
+
+  // Picker States
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [startPickerMode, setStartPickerMode] = useState<'date' | 'time'>('date');
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [endPickerMode, setEndPickerMode] = useState<'date' | 'time'>('date');
 
   useEffect(() => {
-    if (!endTime) {
-      setTimeLeft('00:00:00');
-      return;
-    }
     const tick = () => {
-      const diff = new Date(endTime).getTime() - Date.now();
-      if (diff <= 0) {
+      const now = Date.now();
+      const start = startTime.getTime();
+      const end = endTime.getTime();
+
+      if (now < start) {
+        setTimerStatus('pending');
+        const diff = start - now;
+        setTimeLeft(formatDiff(diff));
+      } else if (now < end) {
+        setTimerStatus('active');
+        const diff = end - now;
+        setTimeLeft(formatDiff(diff));
+      } else {
+        setTimerStatus('ended');
         setTimeLeft('00:00:00');
-        return;
       }
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setTimeLeft(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
     };
+
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [endTime]);
+  }, [startTime, endTime]);
+
+  const formatDiff = (diff: number) => {
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'hackathon_times'), (snap) => {
-      if (snap.exists() && snap.data().end) {
-        setEndTime(snap.data().end);
-        setCustomDate(new Date(snap.data().end).toISOString());
-      } else {
-        setEndTime(null);
-        setCustomDate(new Date().toISOString());
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.start) setStartTime(new Date(data.start));
+        if (data.end) setEndTime(new Date(data.end));
       }
       setLoading(false);
     });
     return unsub;
   }, []);
 
-  const updateTimer = async (newEndStr: string) => {
+  const saveTimes = async () => {
+    if (endTime <= startTime) {
+      Alert.alert('Invalid Range', 'End time must be after start time.');
+      return;
+    }
     try {
-      await setDoc(doc(db, 'settings', 'hackathon_times'), { end: newEndStr }, { merge: true });
-      Alert.alert('Success', 'Timer updated successfully.');
+      await setDoc(doc(db, 'settings', 'hackathon_times'), {
+        start: startTime.toISOString(),
+        end: endTime.toISOString(),
+        updatedAt: Date.now()
+      }, { merge: true });
+      Alert.alert('Success', 'Hackathon schedule updated!');
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
   };
 
-  const handleAddMinutes = (minutes: number) => {
-    let baseTime = endTime ? new Date(endTime).getTime() : Date.now();
-    const newTime = new Date(baseTime + minutes * 60000).toISOString();
-    updateTimer(newTime);
-  };
-
-  const handleSetCustom = () => {
-    try {
-      const d = new Date(customDate);
-      if (isNaN(d.getTime())) throw new Error("Invalid date format");
-      updateTimer(d.toISOString());
-    } catch {
-      Alert.alert('Error', 'Invalid date format. Use ISO format (e.g. 2026-05-03T11:00:00Z)');
+  const onStartChange = (event: any, selectedDate?: Date) => {
+    setShowStartPicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setStartTime(selectedDate);
     }
   };
 
-  const handleStopTimer = () => {
-    Alert.alert('Stop Timer', 'This will set the timer to 0. Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'Stop Now', 
-        style: 'destructive', 
-        onPress: () => updateTimer(new Date().toISOString()) 
-      }
-    ]);
+  const onEndChange = (event: any, selectedDate?: Date) => {
+    setShowEndPicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setEndTime(selectedDate);
+    }
+  };
+
+  const handleQuickAdd = (minutes: number) => {
+    setEndTime(new Date(endTime.getTime() + minutes * 60000));
   };
 
   return (
@@ -100,8 +119,8 @@ export default function AdminTimerControl() {
           <Ionicons name="chevron-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <View>
-          <Text style={styles.headerTitle}>Timer Control</Text>
-          <Text style={styles.subtitle}>Global hackathon countdown</Text>
+          <Text style={styles.headerTitle}>Schedule Hackathon</Text>
+          <Text style={styles.subtitle}>Set start and end periods</Text>
         </View>
       </View>
 
@@ -109,60 +128,142 @@ export default function AdminTimerControl() {
         <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 50 }} />
       ) : (
         <>
-          {/* Current Status */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>TIME REMAINING</Text>
-            <Text style={{ fontSize: 48, fontWeight: 'bold', color: COLORS.primary, marginBottom: SPACING.md }}>
-              {timeLeft}
+          {/* Status Banner */}
+          <View style={[styles.statusBanner, 
+            timerStatus === 'active' ? styles.statusActive : 
+            timerStatus === 'pending' ? styles.statusPending : styles.statusEnded
+          ]}>
+            <Ionicons 
+              name={timerStatus === 'active' ? 'play-circle' : timerStatus === 'pending' ? 'time' : 'stop-circle'} 
+              size={20} 
+              color="#FFF" 
+            />
+            <Text style={styles.statusText}>
+              {timerStatus === 'active' ? 'HACKATHON LIVE' : 
+               timerStatus === 'pending' ? 'COUNTDOWN TO START' : 'HACKATHON ENDED'}
             </Text>
-            
-            <Text style={styles.cardTitle}>CURRENT END TIME</Text>
-            {endTime ? (
-              <Text style={styles.timeText}>{new Date(endTime).toLocaleString()}</Text>
+          </View>
+
+          {/* Countdown Display */}
+          <View style={styles.countdownCard}>
+            <Text style={styles.cardTitle}>TIME REMAINING</Text>
+            <Text style={styles.timerDisplay}>{timeLeft}</Text>
+          </View>
+
+          {/* Start Time Selector */}
+          <Text style={styles.sectionTitle}>START DATE & TIME</Text>
+          <View style={styles.pickerCard}>
+            {Platform.OS === 'web' ? (
+              <View style={styles.webPickerContainer}>
+                <TextInput
+                  style={styles.webInput}
+                  // @ts-ignore - 'type' is supported on web
+                  type="datetime-local"
+                  value={startTime.toISOString().slice(0, 16)}
+                  onChangeText={(val) => {
+                    if (!val) return;
+                    const d = new Date(val);
+                    if (!isNaN(d.getTime())) setStartTime(d);
+                  }}
+                />
+              </View>
             ) : (
-              <Text style={styles.timeText}>Not Set</Text>
+              <View style={styles.pickerRow}>
+                <TouchableOpacity 
+                  style={styles.pickerBtn} 
+                  onPress={() => { setStartPickerMode('date'); setShowStartPicker(true); }}
+                >
+                  <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+                  <Text style={styles.pickerBtnText}>{startTime.toLocaleDateString()}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.pickerBtn} 
+                  onPress={() => { setStartPickerMode('time'); setShowStartPicker(true); }}
+                >
+                  <Ionicons name="time-outline" size={20} color={COLORS.primary} />
+                  <Text style={styles.pickerBtnText}>
+                    {startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* End Time Selector */}
+          <Text style={styles.sectionTitle}>END DATE & TIME</Text>
+          <View style={styles.pickerCard}>
+            {Platform.OS === 'web' ? (
+              <View style={styles.webPickerContainer}>
+                <TextInput
+                  style={styles.webInput}
+                  // @ts-ignore - 'type' is supported on web
+                  type="datetime-local"
+                  value={endTime.toISOString().slice(0, 16)}
+                  onChangeText={(val) => {
+                    if (!val) return;
+                    const d = new Date(val);
+                    if (!isNaN(d.getTime())) setEndTime(d);
+                  }}
+                />
+              </View>
+            ) : (
+              <View style={styles.pickerRow}>
+                <TouchableOpacity 
+                  style={styles.pickerBtn} 
+                  onPress={() => { setEndPickerMode('date'); setShowEndPicker(true); }}
+                >
+                  <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+                  <Text style={styles.pickerBtnText}>{endTime.toLocaleDateString()}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.pickerBtn} 
+                  onPress={() => { setEndPickerMode('time'); setShowEndPicker(true); }}
+                >
+                  <Ionicons name="time-outline" size={20} color={COLORS.primary} />
+                  <Text style={styles.pickerBtnText}>
+                    {endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
 
           {/* Quick Actions */}
-          <Text style={styles.sectionTitle}>QUICK ACTIONS</Text>
-          <View style={styles.quickGrid}>
-            <TouchableOpacity style={styles.quickBtn} onPress={() => handleAddMinutes(60)}>
-              <Ionicons name="add-circle-outline" size={24} color={COLORS.green} />
-              <Text style={styles.quickBtnText}>+ 1 Hour</Text>
+          <View style={styles.quickActions}>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => handleQuickAdd(60)}>
+              <Text style={styles.quickActionText}>+1h End</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickBtn} onPress={() => handleAddMinutes(30)}>
-              <Ionicons name="add-circle-outline" size={24} color={COLORS.green} />
-              <Text style={styles.quickBtnText}>+ 30 Mins</Text>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => handleQuickAdd(360)}>
+              <Text style={styles.quickActionText}>+6h End</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickBtn} onPress={() => handleAddMinutes(-30)}>
-              <Ionicons name="remove-circle-outline" size={24} color={COLORS.orange} />
-              <Text style={styles.quickBtnText}>- 30 Mins</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.quickBtn, { borderColor: COLORS.red }]} onPress={handleStopTimer}>
-              <Ionicons name="stop-circle-outline" size={24} color={COLORS.red} />
-              <Text style={[styles.quickBtnText, { color: COLORS.red }]}>End Now</Text>
+            <TouchableOpacity style={[styles.quickActionBtn, { backgroundColor: COLORS.red + '22', borderColor: COLORS.red }]} 
+              onPress={() => setEndTime(new Date())}>
+              <Text style={[styles.quickActionText, { color: COLORS.red }]}>End Now</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Custom Date Time */}
-          <Text style={styles.sectionTitle}>CUSTOM DATE/TIME (ISO 8601)</Text>
-          <View style={styles.card}>
-            <TextInput
-              style={styles.input}
-              value={customDate}
-              onChangeText={setCustomDate}
-              placeholder="2026-05-03T11:00:00Z"
-              placeholderTextColor={COLORS.textDim}
+          <TouchableOpacity style={styles.saveMainBtn} onPress={saveTimes}>
+            <Ionicons name="save" size={20} color="#FFF" />
+            <Text style={styles.saveMainBtnText}>UPDATE SCHEDULE</Text>
+          </TouchableOpacity>
+
+          {/* Hidden Pickers */}
+          {showStartPicker && (
+            <DateTimePicker
+              value={startTime}
+              mode={startPickerMode}
+              is24Hour={true}
+              onChange={onStartChange}
             />
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSetCustom}>
-              <Text style={styles.saveBtnText}>Update Timer</Text>
-            </TouchableOpacity>
-            <Text style={styles.helpText}>
-              Example format: 2026-05-03T11:00:00Z.
-              'T' separates date and time, 'Z' means UTC.
-            </Text>
-          </View>
+          )}
+          {showEndPicker && (
+            <DateTimePicker
+              value={endTime}
+              mode={endPickerMode}
+              is24Hour={true}
+              onChange={onEndChange}
+            />
+          )}
         </>
       )}
     </ScrollView>
@@ -178,30 +279,67 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   headerTitle: { fontSize: FONTS.size.xl, fontWeight: 'bold', color: COLORS.textPrimary },
   subtitle: { fontSize: FONTS.size.sm, color: COLORS.textSecondary },
-  
-  card: {
-    backgroundColor: COLORS.bgCard, padding: SPACING.lg, borderRadius: RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.xl,
+
+  statusBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 10, borderRadius: RADIUS.md, marginBottom: SPACING.lg,
   },
-  cardTitle: { fontSize: FONTS.size.xs, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 2, marginBottom: SPACING.sm },
-  timeText: { fontSize: FONTS.size.lg, fontWeight: 'bold', color: COLORS.primary },
-  
-  sectionTitle: { fontSize: FONTS.size.sm, fontWeight: 'bold', color: COLORS.textSecondary, marginBottom: SPACING.md, letterSpacing: 1 },
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md, marginBottom: SPACING.xl },
-  quickBtn: {
-    width: '47%', backgroundColor: COLORS.bgCard, padding: SPACING.md, borderRadius: RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', gap: SPACING.sm,
+  statusActive: { backgroundColor: COLORS.green },
+  statusPending: { backgroundColor: COLORS.orange },
+  statusEnded: { backgroundColor: COLORS.red },
+  statusText: { color: '#FFF', fontWeight: 'bold', fontSize: 12, letterSpacing: 1 },
+
+  countdownCard: {
+    backgroundColor: COLORS.bgCard, padding: SPACING.lg, borderRadius: RADIUS.lg,
+    borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', marginBottom: SPACING.xl,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3,
   },
-  quickBtnText: { color: COLORS.textPrimary, fontWeight: '600' },
-  
-  input: {
+  cardTitle: { fontSize: 10, fontWeight: '800', color: COLORS.textSecondary, letterSpacing: 2, marginBottom: 8 },
+  timerDisplay: { fontSize: 48, fontWeight: '900', color: COLORS.primary, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+
+  sectionTitle: { fontSize: 12, fontWeight: 'bold', color: COLORS.textSecondary, marginBottom: SPACING.sm, letterSpacing: 1, textTransform: 'uppercase' },
+  pickerCard: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.lg,
+  },
+  pickerRow: { flexDirection: 'row', gap: SPACING.md },
+  pickerBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.border,
-    color: COLORS.textPrimary, padding: SPACING.md, borderRadius: RADIUS.sm,
-    fontSize: FONTS.size.sm, marginBottom: SPACING.md,
+    paddingVertical: 12, borderRadius: RADIUS.sm,
   },
-  saveBtn: {
-    backgroundColor: COLORS.primary, padding: SPACING.md, borderRadius: RADIUS.sm, alignItems: 'center',
+  pickerBtnText: { color: COLORS.textPrimary, fontWeight: '600', fontSize: 14 },
+
+  webPickerContainer: {
+    width: '100%',
   },
-  saveBtnText: { color: COLORS.white, fontWeight: 'bold' },
-  helpText: { color: COLORS.textDim, fontSize: FONTS.size.xs, marginTop: SPACING.md, lineHeight: 18 },
+  webInput: {
+    width: '100%',
+    backgroundColor: COLORS.bg,
+    color: COLORS.textPrimary,
+    padding: 12,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    fontSize: 14,
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none',
+      }
+    })
+  } as any,
+
+  quickActions: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
+  quickActionBtn: {
+    flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: RADIUS.sm,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard,
+  },
+  quickActionText: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
+
+  saveMainBtn: {
+    backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, paddingVertical: 16, borderRadius: RADIUS.md, marginTop: SPACING.md,
+    shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5,
+  },
+  saveMainBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16, letterSpacing: 1 },
 });

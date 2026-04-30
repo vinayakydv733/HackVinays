@@ -141,9 +141,13 @@ export default function Scanner() {
     const updateRequestStatus = async (reqId: string, newStatus: string) => {
         try {
             const updateData: any = { status: newStatus };
-            if (newStatus === 'active' || newStatus === 'resolved') {
+            if (newStatus === 'active') {
                 updateData.volunteerId = user?.uid;
                 updateData.volunteerName = userData?.name || 'Volunteer';
+                updateData.activatedAt = Date.now();
+            }
+            if (newStatus === 'resolved') {
+                updateData.resolvedAt = Date.now();
             }
             await updateDoc(doc(db, 'help_requests', reqId), updateData);
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

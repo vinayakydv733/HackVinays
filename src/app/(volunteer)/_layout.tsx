@@ -52,6 +52,15 @@ export default function VolunteerLayout() {
                 }}
             />
             <Tabs.Screen
+                name="notices"
+                options={{
+                    title: 'Notices',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="notifications-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
                 name="profile"
                 options={{
                     title: 'Profile',

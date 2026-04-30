@@ -25,24 +25,24 @@ export default function AnalyticsScreen() {
       const teamsSnap = await getDocs(collection(db, 'teams'));
       const usersSnap = await getDocs(collection(db, 'users'));
       const adviceSnap = await getDocs(collection(db, 'advice'));
-      const passesSnap = await getDocs(collection(db, 'passes'));
-      const requestsSnap = await getDocs(collection(db, 'requests'));
+      const helpRequestsSnap = await getDocs(collection(db, 'help_requests'));
 
       const teams = teamsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
       const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
       const advices = adviceSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
-      const passes = passesSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
-      const requests = requestsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+      const helpRequests = helpRequestsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
 
       // 2. Process data into CSV rows
       const headers = [
         'Team Name',
+        'Team ID',
         'Checked In',
         'Project Submitted',
         'Score',
         'Submission Link',
         'Mentor Name',
-        'Team Members',
+        'Team Members (Count)',
+        'Team Members (Names)',
         'Total Advice Received',
         'Total Passes Requested',
         'Total Tech/SOS Requests'
@@ -52,31 +52,33 @@ export default function AnalyticsScreen() {
 
       teams.forEach((team) => {
         // Find users for this team
-        const teamUsers = users.filter((u) => u.teamId === team.id);
+        const teamUsers = users.filter((u) => u.teamId === team.id || u.teamName === (team.name || team.teamName));
         const memberNames = teamUsers.map(u => u.name || u.email).join('; ');
         
-        // Mentors might be assigned at the user level or team level. Usually one per team.
-        const mentor = teamUsers.find(u => u.mentorName)?.mentorName || team.mentorName || 'Unassigned';
+        // Mentor Fallback
+        const mentor = team.mentorName || teamUsers.find(u => u.mentorName)?.mentorName || 'Unassigned';
 
-        // Find advice
-        const teamAdvice = advices.filter((a) => a.teamId === team.id);
-        const totalAdvice = teamAdvice.length;
+        // Filter help requests
+        const teamHelp = helpRequests.filter((r) => r.teamId === team.id);
+        const teamPasses = teamHelp.filter(r => r.type === 'pass_game' || r.type === 'pass_restroom');
+        const teamSOS = teamHelp.filter(r => r.type === 'sos' || r.type === 'tech');
 
-        // Find passes & requests
-        const teamPasses = passes.filter((p) => p.teamId === team.id);
-        const teamRequests = requests.filter((r) => r.teamId === team.id);
+        // Filter advice
+        const teamAdviceCount = advices.filter((a) => a.teamId === team.id).length;
 
         const row = [
           `"${team.name || team.teamName || 'Unknown Team'}"`,
+          `"${team.id}"`,
           team.checkedIn ? 'Yes' : 'No',
           team.projectSubmitted ? 'Yes' : 'No',
           team.score || 0,
           `"${team.submissionLink || ''}"`,
           `"${mentor}"`,
+          teamUsers.length,
           `"${memberNames}"`,
-          totalAdvice,
+          teamAdviceCount,
           teamPasses.length,
-          teamRequests.length
+          teamSOS.length
         ];
 
         csvRows.push(row.join(','));

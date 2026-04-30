@@ -18,6 +18,8 @@ interface HelpRequest {
     message?: string;
     volunteerId?: string;
     createdAt: number;
+    activatedAt?: number;
+    resolvedAt?: number;
 }
 
 export default function Tasks() {
@@ -27,12 +29,19 @@ export default function Tasks() {
     const [filter, setFilter] = useState<'pending' | 'mine' | 'resolved'>('pending');
 
     useEffect(() => {
-        const unsub = onSnapshot(query(collection(db, 'help_requests')), (snap) => {
-            const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() } as HelpRequest));
-            fetched.sort((a, b) => b.createdAt - a.createdAt);
-            setTasks(fetched);
-            setLoading(false);
-        });
+        const unsub = onSnapshot(
+            query(collection(db, 'help_requests')), 
+            (snap) => {
+                const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() } as HelpRequest));
+                fetched.sort((a, b) => b.createdAt - a.createdAt);
+                setTasks(fetched);
+                setLoading(false);
+            },
+            (err) => {
+                console.error("Tasks: help_requests listener error:", err);
+                setLoading(false);
+            }
+        );
         return unsub;
     }, []);
 
@@ -42,7 +51,12 @@ export default function Tasks() {
                 const ref = doc(db, 'help_requests', task.id);
                 const snap = await t.get(ref);
                 if (snap.data()?.status !== 'pending') throw new Error('Someone else beat you to it!');
-                t.update(ref, { status: 'active', volunteerId: user?.uid, volunteerName: userData?.name || 'Volunteer' });
+                t.update(ref, { 
+                    status: 'active', 
+                    volunteerId: user?.uid, 
+                    volunteerName: userData?.name || 'Volunteer',
+                    activatedAt: Date.now() 
+                });
             });
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (e: any) {
@@ -56,6 +70,10 @@ export default function Tasks() {
             if (volunteerId !== null) {
                 data.volunteerId = volunteerId;
                 data.volunteerName = userData?.name || 'Volunteer';
+                data.activatedAt = Date.now();
+            }
+            if (status === 'resolved') {
+                data.resolvedAt = Date.now();
             }
             await updateDoc(doc(db, 'help_requests', id), data);
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

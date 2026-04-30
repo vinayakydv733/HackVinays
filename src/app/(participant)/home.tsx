@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -41,6 +42,8 @@ interface HelpRequest {
   userName: string;
   message?: string;
   createdAt: number;
+  activatedAt?: number;
+  resolvedAt?: number;
 }
 
 // ── Helper Components ──────────────────────────────────────────────
@@ -52,6 +55,33 @@ const SectionTitle = ({ title }: { title: string }) => (
   </View>
 );
 
+const PassTimer = ({ createdAt, status }: { createdAt: number; status: string }) => {
+  const [elapsed, setElapsed] = useState('');
+
+  useEffect(() => {
+    if (status !== 'active') {
+      setElapsed('--:--');
+      return;
+    }
+    const tick = () => {
+      const diff = Date.now() - createdAt;
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setElapsed(`${m}:${String(s).padStart(2, '0')}`);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [createdAt, status]);
+
+  return (
+    <View style={{ alignItems: 'flex-end' }}>
+      <Text style={styles.activePassTimer}>{elapsed}</Text>
+      <Text style={[styles.overtimeText, { fontSize: 8 }]}>TIME ELAPSED</Text>
+    </View>
+  );
+};
+
 // ── Main Screen ────────────────────────────────────────────────────
 export default function ParticipantHome() {
   const { user, userData } = useAuth();
@@ -59,7 +89,7 @@ export default function ParticipantHome() {
 
   const [teamData, setTeamData] = useState<any>(null);
   const [helpRequests, setHelpRequests] = useState<HelpRequest[]>([]);
-  const [hackTime, setHackTime] = useState<{ end: string } | null>(null);
+  const [hackTime, setHackTime] = useState<{ start?: string; end: string } | null>(null);
   const [timeLeft, setTimeLeft] = useState('00:00:00');
   const [loading, setLoading] = useState(true);
   const [totalMembers, setTotalMembers] = useState(0);
@@ -110,7 +140,15 @@ export default function ParticipantHome() {
       collection(db, 'users'),
       where('teamId', '==', userData.teamId)
     );
-    const unsub = onSnapshot(q, (snap) => setTotalMembers(snap.size));
+    const unsub = onSnapshot(q, 
+      (snap) => {
+        console.log(`Team members count updated: ${snap.size}`);
+        setTotalMembers(snap.size);
+      },
+      (error) => {
+        console.error("Error fetching team members count:", error);
+      }
+    );
     return unsub;
   }, [userData?.teamId]);
 
@@ -160,7 +198,7 @@ export default function ParticipantHome() {
     const unsub = onSnapshot(
       doc(db, 'settings', 'hackathon_times'),
       (snap) => {
-        if (snap.exists()) setHackTime(snap.data() as { end: string });
+        if (snap.exists()) setHackTime(snap.data() as { start: string, end: string });
       }
     );
     return unsub;
@@ -170,11 +208,30 @@ export default function ParticipantHome() {
   useEffect(() => {
     if (!hackTime?.end) return;
     const tick = () => {
-      const diff = new Date(hackTime.end).getTime() - Date.now();
-      if (diff <= 0) {
+      const now = Date.now();
+      
+      const parseSafe = (dateStr: string | undefined, fallback: number) => {
+        if (!dateStr) return fallback;
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? fallback : d.getTime();
+      };
+
+      const start = parseSafe(hackTime?.start, now);
+      const end = parseSafe(hackTime?.end, now);
+
+      let diff = 0;
+      if (now < start) {
+        // Not started yet
+        diff = start - now;
+      } else if (now < end) {
+        // Active
+        diff = end - now;
+      } else {
+        // Ended
         setTimeLeft('00:00:00');
         return;
       }
+
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
@@ -190,21 +247,39 @@ export default function ParticipantHome() {
   // ── Handlers ──────────────────────────────────────────────────────
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await logoutUser();
-            router.replace('/(auth)/login');
-          } catch {
-            Alert.alert('Error', 'Failed to sign out. Try again.');
-          }
+    const performLogout = async () => {
+      try {
+        await logoutUser();
+        // Force navigate to login for web to ensure state resets
+        if (Platform.OS === 'web') {
+          window.location.href = '/login'; 
+        } else {
+          router.replace('/(auth)/login');
+        }
+      } catch (error) {
+        console.error("Logout Error:", error);
+        if (Platform.OS === 'web') {
+          window.alert('Failed to sign out. Please try again.');
+        } else {
+          Alert.alert('Error', 'Failed to sign out. Try again.');
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to sign out?')) {
+        performLogout();
+      }
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: performLogout,
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   const handleSOS = () => {
@@ -354,7 +429,10 @@ export default function ParticipantHome() {
     >
       {/* ── Header ── */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Home</Text>
+        <View>
+          <Text style={styles.collegeName}>WELCOME TO JIT BORAWAN</Text>
+          <Text style={styles.headerTitle}>Home</Text>
+        </View>
         <TouchableOpacity
           style={styles.bellIconBtn}
           onPress={() => router.push('/(participant)/notices')}
@@ -376,7 +454,13 @@ export default function ParticipantHome() {
 
       {/* ── Countdown Timer ── */}
       <View style={styles.timerSection}>
-        <Text style={styles.timerTagline}>[ HACKATHON — ENDS IN ]</Text>
+        <Text style={styles.timerTagline}>
+          [ HACKATHON — {
+            hackTime?.start && new Date(hackTime.start).getTime() > Date.now() 
+              ? 'STARTS IN' 
+              : 'ENDS IN'
+          } ]
+        </Text>
         <View style={styles.timerRow}>
           <Text style={styles.timerValue}>{timerH}</Text>
           <Text style={styles.timerColon}>:</Text>
@@ -403,26 +487,22 @@ export default function ParticipantHome() {
           <Ionicons name="people" size={16} color="#c084fc" />
           <Text style={styles.pillText}>{teamName}</Text>
         </View>
-        <View style={[styles.pill, { borderColor: '#064e3b', backgroundColor: '#022c2240' }]}>
-          <View style={styles.greenDot} />
-          <Text style={[styles.pillText, { color: '#34d399' }]}>
-            {membersArrived}/{totalMembers} at table
-          </Text>
-        </View>
-        <View style={[styles.pill, { borderColor: '#b45309', backgroundColor: '#78350f40' }]}>
-          <MaterialCommunityIcons name="table-chair" size={16} color="#fbbf24" />
-          <Text style={[styles.pillText, { color: '#fcd34d' }]}>
-            {availableTableSeats}/{totalMembers} seats free
-          </Text>
-        </View>
-        {userData?.mentorName ? (
+
+        {(userData?.mentorName || teamData?.mentorName) ? (
           <View style={[styles.pill, { borderColor: '#1e3a8a', backgroundColor: '#17255440' }]}>
             <FontAwesome5 name="user-graduate" size={14} color="#60a5fa" />
             <Text style={[styles.pillText, { color: '#93c5fd' }]}>
-              {userData.mentorName}
+              {userData?.mentorName || teamData?.mentorName}
             </Text>
           </View>
         ) : null}
+
+        <View style={[styles.pill, { borderColor: '#064e3b', backgroundColor: '#022c2240' }]}>
+          <View style={styles.greenDot} />
+          <Text style={[styles.pillText, { color: '#34d399' }]}>
+            {Math.max(0, totalMembers - activePasses.length)}/{totalMembers} at table
+          </Text>
+        </View>
       </ScrollView>
 
       {/* ── QR Code Button ── */}
@@ -569,22 +649,14 @@ export default function ParticipantHome() {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.activePassName}>{p.userName}</Text>
               <View style={styles.activePassFooter}>
-                <Text style={styles.activePassTimer}>
-                  {new Date(p.createdAt).toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </Text>
-                {p.status === 'active' && (
-                  <Text style={styles.overtimeText}>● ACTIVE</Text>
-                )}
-                {p.status === 'pending' && (
-                  <Text style={[styles.overtimeText, { color: '#f59e0b' }]}>
-                    ⏳ PENDING
+                <View>
+                  <Text style={styles.activePassName}>{p.userName}</Text>
+                  <Text style={[styles.activePassTimer, { fontSize: 10, color: '#94a3b8' }]}>
+                    Started: {new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>
-                )}
+                </View>
+                <PassTimer createdAt={p.activatedAt || p.createdAt} status={p.status} />
               </View>
             </View>
           ))}
@@ -725,6 +797,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.xl,
+  },
+  collegeName: {
+    color: '#a855f7',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginBottom: 2,
   },
   headerTitle: {
     color: '#ffffff',

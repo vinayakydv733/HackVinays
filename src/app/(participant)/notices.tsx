@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../constants/theme';
 import { db } from '../../firebase/config';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface announcement {
   id: string;
@@ -26,6 +27,7 @@ interface announcement {
 export default function Participantannouncements() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { userData } = useAuth();
   const [announcements, setannouncements] = useState<announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +47,10 @@ export default function Participantannouncements() {
       
       // 2. Filter them locally in JavaScript
       const participantannouncements = fetched.filter(
-        (announcement) => announcement.target === 'all' || announcement.target === 'participants'
+        (announcement) => 
+          announcement.target === 'all' || 
+          announcement.target === 'participants' ||
+          announcement.target === userData?.teamId
       );
 
       setannouncements(participantannouncements);
