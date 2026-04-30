@@ -20,7 +20,8 @@
       "googleServicesFile": "./google-services.json"
     },
     "web": {
-      "favicon": "./assets/images/new_app_icon.png"
+      "favicon": "./assets/images/new_app_icon.png",
+      "output": "static"
     },
     "plugins": [
       "expo-router",
