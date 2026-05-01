@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "build": "npx expo export --platform web",
     "lint": "expo lint",
-    "vercel-build": "expo export"
+    "vercel-build": "npx expo export --platform web && mv dist public"
   },
   "dependencies": {
     "@firebase/auth": "^1.13.0",
